@@ -1,0 +1,11 @@
+[package]
+name = "loss"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4"
+crossterm = "0.28"
+anyhow = "1.0"
+log = "0.4"
+fern = "0.6"
