@@ -3,6 +3,7 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::env;
 
 mod chunk;
+mod document;
 
 fn print_version() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");

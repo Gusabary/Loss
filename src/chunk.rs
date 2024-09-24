@@ -1,11 +1,8 @@
-const DEFAULT_CHUNK_SIZE: usize = 65536;
-
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Chunk {
-    offset_begin: usize,
-    offset_end: usize,
-    // line_count: usize,
-    rows: Vec<String>,
+    pub offset_begin: usize,
+    pub offset_end: usize,
+    pub rows: Vec<String>,
 }
 
 impl Chunk {
