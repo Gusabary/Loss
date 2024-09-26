@@ -1,3 +1,5 @@
+use chrono::offset;
+
 #[derive(Debug)]
 pub struct Chunk {
     pub offset_begin: usize,
@@ -35,12 +37,42 @@ impl Chunk {
             rows,
         }
     }
+
+    pub fn query_line_index(&self, offset: usize) -> usize {
+        assert!(offset >= self.offset_begin && offset < self.offset_end);
+        let mut current_line_offset_begin = self.offset_begin;
+        for (index, row) in self.rows.iter().enumerate() {
+            if offset <= current_line_offset_begin + row.len() {
+                return index;
+            }
+            current_line_offset_begin += row.len() + 1;
+        }
+        unreachable!();
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::vec;
+
+    #[test]
+    fn test_query_line_index() {
+        let content = "123456\n12345\n12\n\n123456\n";
+        let chunk = Chunk::build_chunk(content, 0, false, false);
+        assert_eq!(chunk.offset_begin, 0);
+        assert_eq!(chunk.offset_end, 24);
+        assert_eq!(chunk.rows.len(), 5);
+        assert_eq!(chunk.query_line_index(0), 0);
+        assert_eq!(chunk.query_line_index(6), 0);
+        assert_eq!(chunk.query_line_index(9), 1);
+        assert_eq!(chunk.query_line_index(13), 2);
+        assert_eq!(chunk.query_line_index(15), 2);
+        assert_eq!(chunk.query_line_index(16), 3);
+        assert_eq!(chunk.query_line_index(17), 4);
+        assert_eq!(chunk.query_line_index(22), 4);
+        assert_eq!(chunk.query_line_index(23), 4);
+    }
 
     #[test]
     fn test_build_chunk() {

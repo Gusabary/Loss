@@ -1,6 +1,9 @@
 use anyhow::{Ok, Result};
 use log::info;
-use std::{fs::File, io::{Read, Seek, SeekFrom}};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+};
 
 use crate::chunk::{self, Chunk};
 
@@ -15,20 +18,28 @@ pub struct Document<R: Read + Seek> {
 const DEFAULT_CHUNK_SIZE: usize = 65536;
 
 impl<R: Read + Seek> Document<R> {
-
-    fn new(mut reader: R) -> Result<Self> {  
+    fn new(mut reader: R) -> Result<Self> {
         let document_size = reader.seek(SeekFrom::End(0))? as usize;
-        Ok(Self { reader, chunks: vec![], document_size, default_chunk_size: DEFAULT_CHUNK_SIZE })
-    }  
+        Ok(Self {
+            reader,
+            chunks: vec![],
+            document_size,
+            default_chunk_size: DEFAULT_CHUNK_SIZE,
+        })
+    }
 
     pub fn open_file(filename: &str) -> Result<Document<File>> {
         let file = File::open(filename)?;
         Document::<File>::new(file)
     }
 
-    fn load_chunk(&mut self, mut offset_begin: usize, mut offset_end: usize) -> Result<Option<usize>> {
+    fn load_chunk(
+        &mut self,
+        mut offset_begin: usize,
+        mut offset_end: usize,
+    ) -> Result<Option<usize>> {
+        offset_end = std::cmp::min(offset_end, self.document_size);
         assert!(offset_begin < offset_end);
-        assert!(offset_end <= self.document_size);
 
         // avoid chunk overlap
         if let Some(chunk_index_begin) = self.get_chunk_index_by_offset(offset_begin) {
@@ -54,14 +65,14 @@ impl<R: Read + Seek> Document<R> {
             // actually a temporary hack to make sure first line is not dropped
             offset_begin -= 1;
         }
-        
+
         // build chunk
         let mut buffer = vec![0; offset_end - offset_begin];
         self.reader.seek(SeekFrom::Start(offset_begin as u64))?;
         let consumed = self.reader.read(&mut buffer)?;
         let content = std::str::from_utf8(&buffer[..consumed])?;
         // drop first unless loading chunk starting from the first byte
-        let drop_first = offset_begin > 0;  
+        let drop_first = offset_begin > 0;
         let new_chunk = Chunk::build_chunk(content, offset_begin, drop_first, true);
 
         // add into chunk list
@@ -99,16 +110,38 @@ impl<R: Read + Seek> Document<R> {
                 return Some(index);
             }
             if offset < chunk.offset_begin {
-                return None
+                return None;
             }
         }
         None
     }
 
-    // pub fn query_lines(&mut self, offset: usize, line_count: usize) -> Vec<String> {
-
-    // }
-    
+    pub fn query_lines(&mut self, mut offset: usize, mut line_count: usize) -> Result<Vec<String>> {
+        let mut lines: Vec<String> = vec![];
+        while offset < self.document_size && line_count > 0 {
+            let chunk_index_opt = self.get_chunk_index_by_offset(offset);
+            let chunk_index = if chunk_index_opt.is_none() {
+                self.load_chunk_around(offset)?.unwrap()
+            } else {
+                chunk_index_opt.unwrap()
+            };
+            let chunk = &self.chunks[chunk_index];
+            let line_index = chunk.query_line_index(offset);
+            let line_count_taken = std::cmp::min(line_count, chunk.rows.len() - line_index);
+            lines.extend(
+                chunk
+                    .rows
+                    .iter()
+                    .skip(line_index)
+                    .take(line_count_taken)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
+            line_count -= line_count_taken;
+            offset = chunk.offset_end;
+        }
+        Ok(lines)
+    }
 }
 
 #[cfg(test)]
@@ -117,12 +150,68 @@ mod tests {
     use std::{io::Cursor, vec};
 
     #[test]
+    fn test_query_lines() {
+        let cursor = Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\n");
+        let mut doc = Document::new(cursor.clone()).unwrap();
+        doc.default_chunk_size = 10;
+        assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["1234", "abcd"]);
+        assert_eq!(doc.query_lines(16, 1).unwrap(), vec!["abcd"]);
+        assert_eq!(doc.query_lines(4, 1).unwrap(), vec!["1234"]);
+        assert_eq!(
+            doc.query_lines(19, 3).unwrap(),
+            vec!["abcd", "1234", "abcd"]
+        );
+        assert_eq!(doc.query_lines(35, 2).unwrap(), vec!["abcd"]);
+        assert_eq!(doc.query_lines(38, 6).unwrap(), vec!["abcd"]);
+
+        let cursor = Cursor::new("123456789\n\n\nabcd\n123456789\n");
+        let mut doc = Document::new(cursor.clone()).unwrap();
+        doc.default_chunk_size = 25;
+        assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["123456789", ""]);
+        assert_eq!(doc.query_lines(7, 3).unwrap(), vec!["123456789", "", ""]);
+        assert_eq!(
+            doc.query_lines(7, 4).unwrap(),
+            vec!["123456789", "", "", "abcd"]
+        );
+        assert_eq!(
+            doc.query_lines(9, 5).unwrap(),
+            vec!["123456789", "", "", "abcd", "123456789"]
+        );
+        assert_eq!(
+            doc.query_lines(9, 6).unwrap(),
+            vec!["123456789", "", "", "abcd", "123456789"]
+        );
+        assert_eq!(
+            doc.query_lines(10, 6).unwrap(),
+            vec!["", "", "abcd", "123456789"]
+        );
+        assert_eq!(
+            doc.query_lines(11, 6).unwrap(),
+            vec!["", "abcd", "123456789"]
+        );
+        assert_eq!(doc.query_lines(12, 6).unwrap(), vec!["abcd", "123456789"]);
+        assert_eq!(doc.query_lines(12, 1).unwrap(), vec!["abcd"]);
+    }
+
+    #[test]
     fn test_get_chunk_index_by_offset() {
         let cursor = Cursor::new("");
         let mut doc = Document::new(cursor).unwrap();
-        doc.chunks.push(Chunk {offset_begin: 0, offset_end: 5, rows: vec![]});
-        doc.chunks.push(Chunk {offset_begin: 5, offset_end: 10, rows: vec![]});
-        doc.chunks.push(Chunk {offset_begin: 15, offset_end: 20, rows: vec![]});
+        doc.chunks.push(Chunk {
+            offset_begin: 0,
+            offset_end: 5,
+            rows: vec![],
+        });
+        doc.chunks.push(Chunk {
+            offset_begin: 5,
+            offset_end: 10,
+            rows: vec![],
+        });
+        doc.chunks.push(Chunk {
+            offset_begin: 15,
+            offset_end: 20,
+            rows: vec![],
+        });
         assert_eq!(doc.get_chunk_index_by_offset(0), Some(0));
         assert_eq!(doc.get_chunk_index_by_offset(2), Some(0));
         assert_eq!(doc.get_chunk_index_by_offset(5), Some(1));
@@ -194,5 +283,4 @@ mod tests {
         assert_eq!(doc.chunks[2].offset_begin, 35);
         assert_eq!(doc.chunks[2].offset_end, 40);
     }
-
 }
