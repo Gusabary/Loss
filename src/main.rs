@@ -1,11 +1,14 @@
 use anyhow::{Ok, Result};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use event_hub::EventHub;
+use manager::Manager;
 use std::env;
 
 mod chunk;
 mod document;
 mod event_hub;
+mod manager;
+mod render;
 
 fn print_version() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -44,14 +47,10 @@ fn main() -> Result<()> {
         print_version();
     } else {
         let filename = args[1].as_str();
-        println!("{filename}");
         enable_raw_mode().unwrap();
 
-        let hub = EventHub {};
-        for i in 0..3 {
-            let event = hub.wait_for_event();
-            println!("{:?}", event);
-        }
+        let mut manager = Manager::new(filename)?;
+        manager.run()?;
 
         disable_raw_mode().unwrap();
     }

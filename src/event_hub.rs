@@ -2,7 +2,7 @@ use anyhow::{Ok, Result};
 use crossterm::event::{self, read, KeyCode, KeyEvent, KeyModifiers};
 use log::info;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Direction {
     Up,
     Down,
@@ -10,9 +10,10 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Event {
     WindowMove(Direction, usize),
+    Exit,
 }
 
 pub struct EventHub {}
@@ -34,6 +35,7 @@ impl EventHub {
     fn handle_key_press(&self, key: &KeyEvent) -> Result<Option<Event>> {
         if key.modifiers == KeyModifiers::NONE {
             match key.code {
+                KeyCode::Char('q') => Ok(Some(Event::Exit)),
                 KeyCode::Down => Ok(Some(Event::WindowMove(Direction::Down, 1))),
                 KeyCode::Up => Ok(Some(Event::WindowMove(Direction::Up, 1))),
                 KeyCode::Right => Ok(Some(Event::WindowMove(Direction::Right, 1))),
