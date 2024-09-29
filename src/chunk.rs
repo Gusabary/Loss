@@ -1,6 +1,6 @@
 use chrono::offset;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Chunk {
     pub offset_begin: usize,
     pub offset_end: usize,

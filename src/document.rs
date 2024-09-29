@@ -166,7 +166,7 @@ mod tests {
 
         let cursor = Cursor::new("123456789\n\n\nabcd\n123456789\n");
         let mut doc = Document::new(cursor.clone()).unwrap();
-        doc.default_chunk_size = 25;
+        doc.default_chunk_size = 24;
         assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["123456789", ""]);
         assert_eq!(doc.query_lines(7, 3).unwrap(), vec!["123456789", "", ""]);
         assert_eq!(
@@ -191,6 +191,27 @@ mod tests {
         );
         assert_eq!(doc.query_lines(12, 6).unwrap(), vec!["abcd", "123456789"]);
         assert_eq!(doc.query_lines(12, 1).unwrap(), vec!["abcd"]);
+
+        assert_eq!(
+            doc.chunks,
+            vec![
+                Chunk {
+                    offset_begin: 0,
+                    offset_end: 12,
+                    rows: vec!["123456789".to_string(), "".to_string(), "".to_string()]
+                },
+                Chunk {
+                    offset_begin: 12,
+                    offset_end: 17,
+                    rows: vec!["abcd".to_string()]
+                },
+                Chunk {
+                    offset_begin: 17,
+                    offset_end: 27,
+                    rows: vec!["123456789".to_string()]
+                }
+            ]
+        );
     }
 
     #[test]
