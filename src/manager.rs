@@ -2,7 +2,7 @@ use std::fs::File;
 
 use crate::{
     document::Document,
-    event_source::{Direction, Event, EventHub},
+    event_source::{Direction, Event, EventSource},
     render::{render, RenderOptions},
 };
 use anyhow::{Ok, Result};
@@ -28,7 +28,7 @@ impl WindowSize {
 
 pub struct Manager {
     document: Document<File>,
-    event_hub: EventHub,
+    event_source: EventSource,
     window_offset: usize,
     window_size: WindowSize,
     render_options: RenderOptions,
@@ -36,10 +36,10 @@ pub struct Manager {
 
 impl Manager {
     pub fn new(filename: &str) -> Result<Manager> {
-        info!("[new] manager created: {filename}");
+        info!("[new] ===== manager created: {filename} =====");
         Ok(Manager {
             document: Document::<File>::open_file(filename)?,
-            event_hub: EventHub {},
+            event_source: EventSource {},
             window_offset: 0,
             window_size: WindowSize::from_terminal_size()?,
             render_options: RenderOptions {},
@@ -54,26 +54,42 @@ impl Manager {
 
             render(&lines, &self.window_size, &self.render_options)?;
 
-            let event = self.event_hub.wait_for_event()?;
+            let event = self.event_source.wait_for_event()?;
             info!("[run] new event: {:?}", event);
             match event {
                 Event::Exit => return Ok(()),
                 Event::WindowMove(direction, step) => self.on_window_move_event(direction, step)?,
             }
             info!("[run] window_offset: {}", self.window_offset);
+            self.ensure_consistency()?;
         }
     }
 
     fn on_window_move_event(&mut self, direction: Direction, step: usize) -> Result<()> {
         match direction {
-            Direction::Up => panic!("not supported yet"),
+            Direction::Up => {
+                let distance = self
+                    .document
+                    .query_distance_to_above_n_lines(self.window_offset, step)?;
+                self.window_offset = self.window_offset.saturating_sub(distance);
+            }
             Direction::Down => {
-                // todo: should use a first-class api of document
-                let line_len = self.document.query_lines(self.window_offset, 1)?[0].len() + 1;
-                self.window_offset += line_len;
+                let distance = self
+                    .document
+                    .query_distance_to_below_n_lines(self.window_offset, step)?;
+                self.window_offset = self.window_offset.saturating_add(distance);
             }
             Direction::Left => panic!("not supported yet"),
             Direction::Right => panic!("not supported yet"),
+        }
+        Ok(())
+    }
+
+    fn ensure_consistency(&mut self) -> Result<()> {
+        assert!(self.window_offset <= self.document.last_line_start_offset());
+        if self.window_offset < self.document.last_line_start_offset() {
+            self.document
+                .assert_offset_is_at_line_start(self.window_offset)?;
         }
         Ok(())
     }

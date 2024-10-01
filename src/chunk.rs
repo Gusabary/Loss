@@ -1,3 +1,7 @@
+use core::panic;
+
+use log::info;
+
 #[derive(Debug, PartialEq)]
 pub struct Chunk {
     pub offset_begin: usize,
@@ -12,6 +16,7 @@ impl Chunk {
         drop_first: bool,
         drop_last: bool,
     ) -> Chunk {
+        info!("[build_chunk] offset: {content_offset} content: \n{content}");
         let mut cur_index = 0;
         if drop_first {
             let first_line_break = content.find('\n');
@@ -47,12 +52,39 @@ impl Chunk {
         }
         unreachable!();
     }
+
+    pub fn query_line_index_exactly(&self, offset: usize) -> usize {
+        assert!(offset >= self.offset_begin && offset < self.offset_end);
+        let mut current_line_offset_begin = self.offset_begin;
+        for (index, row) in self.rows.iter().enumerate() {
+            if offset == current_line_offset_begin {
+                return index;
+            }
+            current_line_offset_begin += row.len() + 1;
+        }
+        panic!("cannot find line index exactly");
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::vec;
+
+    #[test]
+    fn test_query_line_index_exactly_ok() {
+        let content = "123456\n12345\n12\n\n123456\n";
+        let chunk = Chunk::build_chunk(content, 0, false, false);
+        assert_eq!(chunk.query_line_index_exactly(7), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot find line index exactly")]
+    fn test_query_line_index_exactly_panic() {
+        let content = "123456\n12345\n12\n\n123456\n";
+        let chunk = Chunk::build_chunk(content, 0, false, false);
+        chunk.query_line_index_exactly(3);
+    }
 
     #[test]
     fn test_query_line_index() {

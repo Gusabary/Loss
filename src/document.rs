@@ -1,4 +1,5 @@
 use anyhow::{Ok, Result};
+use log::info;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
@@ -10,6 +11,7 @@ use crate::chunk::Chunk;
 pub struct Document<R: Read + Seek> {
     reader: R,
     chunks: Vec<Chunk>,
+    last_line: Option<String>,
     document_size: usize,
     default_chunk_size: usize,
 }
@@ -19,12 +21,23 @@ const DEFAULT_CHUNK_SIZE: usize = 65536;
 impl<R: Read + Seek> Document<R> {
     fn new(mut reader: R) -> Result<Self> {
         let document_size = reader.seek(SeekFrom::End(0))? as usize;
-        Ok(Self {
+        let mut document = Self {
             reader,
             chunks: vec![],
+            last_line: None,
             document_size,
             default_chunk_size: DEFAULT_CHUNK_SIZE,
-        })
+        };
+        if document_size > 0 {
+            document.load_chunk(
+                document_size.saturating_sub(DEFAULT_CHUNK_SIZE),
+                document_size,
+            )?;
+            assert!(document.last_line.is_some());
+        } else {
+            document.last_line = Some(String::default());
+        }
+        Ok(document)
     }
 
     pub fn open_file(filename: &str) -> Result<Document<File>> {
@@ -32,11 +45,17 @@ impl<R: Read + Seek> Document<R> {
         Document::<File>::new(file)
     }
 
+    pub fn last_line_start_offset(&self) -> usize {
+        assert!(self.last_line.is_some());
+        self.document_size - self.last_line.as_ref().unwrap().len()
+    }
+
     fn load_chunk(
         &mut self,
         mut offset_begin: usize,
         mut offset_end: usize,
     ) -> Result<Option<usize>> {
+        info!("[load_chunk] offset_begin: {offset_begin} offset_end: {offset_end}");
         offset_end = std::cmp::min(offset_end, self.document_size);
         assert!(offset_begin < offset_end);
 
@@ -69,10 +88,26 @@ impl<R: Read + Seek> Document<R> {
         let mut buffer = vec![0; offset_end - offset_begin];
         self.reader.seek(SeekFrom::Start(offset_begin as u64))?;
         let consumed = self.reader.read(&mut buffer)?;
+        assert!(consumed > 0, "cannot read anything from file");
         let content = std::str::from_utf8(&buffer[..consumed])?;
         // drop first unless loading chunk starting from the first byte
         let drop_first = offset_begin > 0;
-        let new_chunk = Chunk::build_chunk(content, offset_begin, drop_first, true);
+        let cover_end = offset_end >= self.document_size;
+        let mut new_chunk = Chunk::build_chunk(content, offset_begin, drop_first, !cover_end);
+
+        if cover_end {
+            // handle last line
+            assert!(new_chunk.rows.len() > 0);
+            let mut last_line = new_chunk.rows.pop().unwrap();
+            if content.chars().last().unwrap() == '\n' {
+                last_line.push('\n');
+            }
+            new_chunk.offset_end -= last_line.len();
+            self.last_line = Some(last_line);
+        }
+        if new_chunk.rows.is_empty() {
+            return Ok(None);
+        }
 
         // add into chunk list
         let mut new_chunk_index = 0;
@@ -91,16 +126,19 @@ impl<R: Read + Seek> Document<R> {
         }
         self.chunks.drain(new_chunk_index..remove_until_index);
         self.chunks.insert(new_chunk_index, new_chunk);
+        info!("[load_chunk] chunks: {:?}", self.chunks);
         Ok(Some(new_chunk_index))
     }
 
     fn load_chunk_around(&mut self, offset: usize) -> Result<Option<usize>> {
+        info!("[load_chunk_around] offset: {offset}");
         let offset_begin = offset.saturating_sub(self.default_chunk_size / 2);
         let offset_end = offset.saturating_add(self.default_chunk_size / 2);
         self.load_chunk(offset_begin, offset_end)
     }
 
     fn get_chunk_index_by_offset(&self, offset: usize) -> Option<usize> {
+        info!("[get_chunk_index_by_offset] offset: {offset}");
         for (index, chunk) in self.chunks.iter().enumerate() {
             if offset >= chunk.offset_end {
                 continue;
@@ -115,17 +153,24 @@ impl<R: Read + Seek> Document<R> {
         None
     }
 
+    fn get_or_load_chunk_by_offset(&mut self, offset: usize) -> Result<&Chunk> {
+        info!("[get_or_load_chunk_by_offset] offset: {offset}");
+        let chunk_index_opt = self.get_chunk_index_by_offset(offset);
+        let chunk_index = if chunk_index_opt.is_none() {
+            self.load_chunk_around(offset)?.unwrap()
+        } else {
+            chunk_index_opt.unwrap()
+        };
+        let chunk = &self.chunks[chunk_index];
+        Ok(chunk)
+    }
+
     pub fn query_lines(&mut self, mut offset: usize, mut line_count: usize) -> Result<Vec<String>> {
+        info!("[query_lines] offset: {offset} line_count: {line_count}");
         let mut lines: Vec<String> = vec![];
-        while offset < self.document_size && line_count > 0 {
-            let chunk_index_opt = self.get_chunk_index_by_offset(offset);
-            let chunk_index = if chunk_index_opt.is_none() {
-                self.load_chunk_around(offset)?.unwrap()
-            } else {
-                chunk_index_opt.unwrap()
-            };
-            let chunk = &self.chunks[chunk_index];
-            let line_index = chunk.query_line_index(offset);
+        while offset < self.last_line_start_offset() && line_count > 0 {
+            let chunk = self.get_or_load_chunk_by_offset(offset)?;
+            let line_index = chunk.query_line_index_exactly(offset);
             let line_count_taken = std::cmp::min(line_count, chunk.rows.len() - line_index);
             lines.extend(
                 chunk
@@ -139,7 +184,90 @@ impl<R: Read + Seek> Document<R> {
             line_count -= line_count_taken;
             offset = chunk.offset_end;
         }
+        if line_count > 0 {
+            lines.push(self.last_line_without_line_break());
+        }
         Ok(lines)
+    }
+
+    fn last_line_without_line_break(&self) -> String {
+        let mut last_line = self.last_line.clone().unwrap();
+        if last_line.ends_with('\n') {
+            last_line.pop();
+        }
+        last_line
+    }
+
+    pub fn query_distance_to_above_n_lines(
+        &mut self,
+        mut offset: usize,
+        mut line_count: usize,
+    ) -> Result<usize> {
+        info!("[query_distance_to_above_n_lines] offset: {offset} line_count: {line_count}");
+        // offset must be at the line start
+        let mut distance = 0;
+        let mut first_loop = true;
+        assert!(offset <= self.last_line_start_offset());
+        if offset == self.last_line_start_offset() {
+            offset = offset.saturating_sub(1);
+            first_loop = false;
+        }
+        while offset > 0 && line_count > 0 {
+            let chunk = self.get_or_load_chunk_by_offset(offset)?;
+            let above_lines_in_chunk = if first_loop {
+                chunk.query_line_index_exactly(offset)
+            } else {
+                chunk.query_line_index(offset) + 1
+            };
+            let line_count_skipped = chunk.rows.len() - above_lines_in_chunk;
+            let line_count_taken = std::cmp::min(line_count, above_lines_in_chunk);
+
+            distance += chunk
+                .rows
+                .iter()
+                .rev()
+                .skip(line_count_skipped)
+                .take(line_count_taken)
+                // count in the \n
+                .map(|line| line.len() + 1)
+                .sum::<usize>();
+            line_count -= line_count_taken;
+            offset = chunk.offset_begin.saturating_sub(1);
+            first_loop = false;
+        }
+        Ok(distance)
+    }
+
+    pub fn query_distance_to_below_n_lines(
+        &mut self,
+        mut offset: usize,
+        mut line_count: usize,
+    ) -> Result<usize> {
+        info!("[query_distance_to_below_n_lines] offset: {offset} line_count: {line_count}");
+        // offset must be at the line start
+        let mut distance = 0;
+        while offset < self.last_line_start_offset() && line_count > 0 {
+            let chunk = self.get_or_load_chunk_by_offset(offset)?;
+            let line_index = chunk.query_line_index_exactly(offset);
+            let line_count_taken = std::cmp::min(line_count, chunk.rows.len() - line_index);
+            distance += chunk
+                .rows
+                .iter()
+                .skip(line_index)
+                .take(line_count_taken)
+                // count in the \n
+                .map(|line| line.len() + 1)
+                .sum::<usize>();
+            line_count -= line_count_taken;
+            offset = chunk.offset_end;
+        }
+        Ok(distance)
+    }
+
+    pub fn assert_offset_is_at_line_start(&mut self, offset: usize) -> Result<()> {
+        let chunk = self.get_or_load_chunk_by_offset(offset)?;
+        chunk.query_line_index_exactly(offset);
+        Ok(())
     }
 }
 
@@ -149,35 +277,82 @@ mod tests {
     use std::{io::Cursor, vec};
 
     #[test]
+    fn test_query_distance_to_above_n_lines() {
+        let cursor =
+            Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\n\n\n1234\nremain");
+        let mut doc = Document::new(cursor.clone()).unwrap();
+        assert_eq!(doc.query_distance_to_above_n_lines(0, 0).unwrap(), 0);
+        assert_eq!(doc.query_distance_to_above_n_lines(5, 0).unwrap(), 0);
+        assert_eq!(doc.query_distance_to_above_n_lines(5, 1).unwrap(), 5);
+        assert_eq!(doc.query_distance_to_above_n_lines(20, 1).unwrap(), 5);
+        assert_eq!(doc.query_distance_to_above_n_lines(30, 6).unwrap(), 30);
+        assert_eq!(doc.query_distance_to_above_n_lines(35, 7).unwrap(), 35);
+        assert_eq!(doc.query_distance_to_above_n_lines(35, 10).unwrap(), 35);
+        assert_eq!(doc.query_distance_to_above_n_lines(40, 0).unwrap(), 0);
+        assert_eq!(doc.query_distance_to_above_n_lines(40, 1).unwrap(), 5);
+        assert_eq!(doc.query_distance_to_above_n_lines(40, 2).unwrap(), 10);
+        assert_eq!(doc.query_distance_to_above_n_lines(41, 1).unwrap(), 1);
+        assert_eq!(doc.query_distance_to_above_n_lines(41, 2).unwrap(), 6);
+        assert_eq!(doc.query_distance_to_above_n_lines(41, 3).unwrap(), 11);
+        assert_eq!(doc.query_distance_to_above_n_lines(42, 1).unwrap(), 1);
+        assert_eq!(doc.query_distance_to_above_n_lines(42, 2).unwrap(), 2);
+        assert_eq!(doc.query_distance_to_above_n_lines(42, 3).unwrap(), 7);
+        assert_eq!(doc.query_distance_to_above_n_lines(47, 0).unwrap(), 0);
+        assert_eq!(doc.query_distance_to_above_n_lines(47, 1).unwrap(), 5);
+        assert_eq!(doc.query_distance_to_above_n_lines(47, 2).unwrap(), 6);
+        assert_eq!(doc.query_distance_to_above_n_lines(47, 3).unwrap(), 7);
+        assert_eq!(doc.query_distance_to_above_n_lines(47, 4).unwrap(), 12);
+    }
+
+    #[test]
+    fn test_query_distance_to_below_n_lines() {
+        let cursor = Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\nremain");
+        let mut doc = Document::new(cursor.clone()).unwrap();
+        assert_eq!(doc.query_distance_to_below_n_lines(0, 2).unwrap(), 10);
+        assert_eq!(doc.query_distance_to_below_n_lines(0, 6).unwrap(), 30);
+        assert_eq!(doc.query_distance_to_below_n_lines(5, 0).unwrap(), 0);
+        assert_eq!(doc.query_distance_to_below_n_lines(20, 1).unwrap(), 5);
+        assert_eq!(doc.query_distance_to_below_n_lines(30, 6).unwrap(), 10);
+    }
+
+    #[test]
     fn test_query_lines() {
-        let cursor = Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\n");
+        let cursor = Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\nremain");
         let mut doc = Document::new(cursor.clone()).unwrap();
         doc.default_chunk_size = 10;
+        assert_eq!(doc.chunks.len(), 1);
+        assert_eq!(doc.last_line.as_ref().unwrap(), "remain");
+        doc.chunks.pop();
+
         assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["1234", "abcd"]);
-        assert_eq!(doc.query_lines(16, 1).unwrap(), vec!["abcd"]);
-        assert_eq!(doc.query_lines(4, 1).unwrap(), vec!["1234"]);
+        assert_eq!(doc.query_lines(15, 1).unwrap(), vec!["abcd"]);
+        assert_eq!(doc.query_lines(0, 1).unwrap(), vec!["1234"]);
         assert_eq!(
-            doc.query_lines(19, 3).unwrap(),
+            doc.query_lines(15, 3).unwrap(),
             vec!["abcd", "1234", "abcd"]
         );
-        assert_eq!(doc.query_lines(35, 2).unwrap(), vec!["abcd"]);
-        assert_eq!(doc.query_lines(38, 6).unwrap(), vec!["abcd"]);
+        assert_eq!(doc.query_lines(35, 1).unwrap(), vec!["abcd"]);
+        assert_eq!(doc.query_lines(35, 2).unwrap(), vec!["abcd", "remain"]);
 
         let cursor = Cursor::new("123456789\n\n\nabcd\n123456789\n");
         let mut doc = Document::new(cursor.clone()).unwrap();
         doc.default_chunk_size = 24;
+        assert_eq!(doc.chunks.len(), 1);
+        assert_eq!(doc.last_line.as_ref().unwrap(), "123456789\n");
+        doc.chunks.pop();
+
         assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["123456789", ""]);
-        assert_eq!(doc.query_lines(7, 3).unwrap(), vec!["123456789", "", ""]);
+        assert_eq!(doc.query_lines(0, 3).unwrap(), vec!["123456789", "", ""]);
         assert_eq!(
-            doc.query_lines(7, 4).unwrap(),
+            doc.query_lines(0, 4).unwrap(),
             vec!["123456789", "", "", "abcd"]
         );
         assert_eq!(
-            doc.query_lines(9, 5).unwrap(),
+            doc.query_lines(0, 5).unwrap(),
             vec!["123456789", "", "", "abcd", "123456789"]
         );
         assert_eq!(
-            doc.query_lines(9, 6).unwrap(),
+            doc.query_lines(0, 6).unwrap(),
             vec!["123456789", "", "", "abcd", "123456789"]
         );
         assert_eq!(
@@ -204,11 +379,6 @@ mod tests {
                     offset_end: 17,
                     rows: vec!["abcd".to_string()]
                 },
-                Chunk {
-                    offset_begin: 17,
-                    offset_end: 27,
-                    rows: vec!["123456789".to_string()]
-                }
             ]
         );
     }
@@ -243,8 +413,12 @@ mod tests {
 
     #[test]
     fn test_load_chunk() {
-        let cursor = Cursor::new("1234\n1234\n1234\n1234\n1234\n1234\n1234\n1234\n");
+        let cursor = Cursor::new("1234\n1234\n1234\n1234\n1234\n1234\n1234\n1234\nabc");
         let mut doc = Document::new(cursor.clone()).unwrap();
+        assert_eq!(doc.chunks.len(), 1);
+        assert_eq!(doc.last_line.as_ref().unwrap(), "abc");
+        doc.chunks.pop();
+
         doc.load_chunk(0, 11).unwrap();
         assert_eq!(doc.chunks[0].offset_begin, 0);
         assert_eq!(doc.chunks[0].offset_end, 10);
@@ -272,14 +446,30 @@ mod tests {
         assert_eq!(doc.chunks[4].offset_begin, 30);
         assert_eq!(doc.chunks[4].offset_end, 35);
 
+        doc.load_chunk(30, 42).unwrap();
+        assert_eq!(doc.chunks[5].offset_begin, 35);
+        assert_eq!(doc.chunks[5].offset_end, 40);
+
+        doc.load_chunk(30, 43).unwrap();
+        assert_eq!(doc.chunks[5].offset_begin, 35);
+        assert_eq!(doc.chunks[5].offset_end, 40);
+
+        doc.load_chunk(30, 45).unwrap();
+        assert_eq!(doc.chunks[5].offset_begin, 35);
+        assert_eq!(doc.chunks[5].offset_end, 40);
+
         doc.load_chunk(6, 31).unwrap();
-        assert_eq!(doc.chunks.len(), 5);
+        assert_eq!(doc.chunks.len(), 6);
     }
 
     #[test]
     fn test_load_chunk_drain() {
         let cursor = Cursor::new("1234\n1234\n1234\n1234\n1234\n1234\n1234\n1234\n");
         let mut doc = Document::new(cursor.clone()).unwrap();
+        assert_eq!(doc.chunks.len(), 1);
+        assert_eq!(doc.last_line.as_ref().unwrap(), "1234\n");
+        doc.chunks.pop();
+
         doc.load_chunk(0, 11).unwrap();
         assert_eq!(doc.chunks[0].offset_begin, 0);
         assert_eq!(doc.chunks[0].offset_end, 10);
@@ -289,18 +479,16 @@ mod tests {
         assert_eq!(doc.chunks[1].offset_end, 20);
 
         doc.load_chunk(23, 32).unwrap();
+        assert_eq!(doc.chunks.len(), 3);
         assert_eq!(doc.chunks[2].offset_begin, 25);
         assert_eq!(doc.chunks[2].offset_end, 30);
 
         doc.load_chunk(35, 40).unwrap();
-        assert_eq!(doc.chunks[3].offset_begin, 35);
-        assert_eq!(doc.chunks[3].offset_end, 40);
+        assert_eq!(doc.chunks.len(), 3);
 
         doc.load_chunk(12, 32).unwrap();
-        assert_eq!(doc.chunks.len(), 3);
+        assert_eq!(doc.chunks.len(), 2);
         assert_eq!(doc.chunks[1].offset_begin, 15);
         assert_eq!(doc.chunks[1].offset_end, 30);
-        assert_eq!(doc.chunks[2].offset_begin, 35);
-        assert_eq!(doc.chunks[2].offset_end, 40);
     }
 }

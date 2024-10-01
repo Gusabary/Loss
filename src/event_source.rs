@@ -15,9 +15,9 @@ pub enum Event {
     Exit,
 }
 
-pub struct EventHub {}
+pub struct EventSource {}
 
-impl EventHub {
+impl EventSource {
     pub fn wait_for_event(&self) -> Result<Event> {
         loop {
             let raw_event = read()?;
