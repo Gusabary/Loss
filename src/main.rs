@@ -1,12 +1,11 @@
 use anyhow::{Ok, Result};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use event_hub::EventHub;
 use manager::Manager;
 use std::env;
 
 mod chunk;
 mod document;
-mod event_hub;
+mod event_source;
 mod manager;
 mod render;
 

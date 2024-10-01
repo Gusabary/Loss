@@ -1,11 +1,10 @@
 use anyhow::{Ok, Result};
-use log::info;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom},
 };
 
-use crate::chunk::{self, Chunk};
+use crate::chunk::Chunk;
 
 #[derive(Debug)]
 pub struct Document<R: Read + Seek> {

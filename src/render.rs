@@ -16,10 +16,6 @@ pub fn render(
     window_size: &WindowSize,
     render_options: &RenderOptions,
 ) -> Result<()> {
-    for (index, line) in lines.iter().enumerate() {
-        println!("{line}");
-    }
-
     let displayable_lines = lines;
     let render_buffer = displayable_lines
         .iter()

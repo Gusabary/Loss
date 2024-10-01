@@ -1,6 +1,5 @@
 use anyhow::{Ok, Result};
 use crossterm::event::{self, read, KeyCode, KeyEvent, KeyModifiers};
-use log::info;
 
 #[derive(Debug, PartialEq)]
 pub enum Direction {

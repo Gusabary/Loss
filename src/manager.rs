@@ -2,8 +2,8 @@ use std::fs::File;
 
 use crate::{
     document::Document,
-    event_hub::{Event, EventHub},
-    render::{self, render, RenderOptions},
+    event_source::{Direction, Event, EventHub},
+    render::{render, RenderOptions},
 };
 use anyhow::{Ok, Result};
 use crossterm::terminal;
@@ -51,14 +51,30 @@ impl Manager {
             let lines = self
                 .document
                 .query_lines(self.window_offset, self.window_size.height)?;
+
             render(&lines, &self.window_size, &self.render_options)?;
 
             let event = self.event_hub.wait_for_event()?;
             info!("[run] new event: {:?}", event);
             match event {
                 Event::Exit => return Ok(()),
-                Event::WindowMove(direction, step) => {}
+                Event::WindowMove(direction, step) => self.on_window_move_event(direction, step)?,
             }
+            info!("[run] window_offset: {}", self.window_offset);
         }
+    }
+
+    fn on_window_move_event(&mut self, direction: Direction, step: usize) -> Result<()> {
+        match direction {
+            Direction::Up => panic!("not supported yet"),
+            Direction::Down => {
+                // todo: should use a first-class api of document
+                let line_len = self.document.query_lines(self.window_offset, 1)?[0].len() + 1;
+                self.window_offset += line_len;
+            }
+            Direction::Left => panic!("not supported yet"),
+            Direction::Right => panic!("not supported yet"),
+        }
+        Ok(())
     }
 }
