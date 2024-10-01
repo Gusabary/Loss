@@ -14,6 +14,7 @@ pub struct Manager {
     window: Window,
     event_source: EventSource,
     renderer: Renderer,
+    raw_lines: Vec<String>,
 }
 
 impl Manager {
@@ -24,6 +25,7 @@ impl Manager {
             window: Window::new()?,
             event_source: EventSource {},
             renderer: Renderer::default(),
+            raw_lines: Vec::<String>::default(),
         })
     }
 
@@ -39,12 +41,12 @@ impl Manager {
     }
 
     fn fill_buffer_and_render(&mut self) -> Result<()> {
-        let lines = self
+        self.raw_lines = self
             .document
             .query_lines(self.window.offset, self.window.height)?;
 
         self.renderer.buffer.clear();
-        for line in lines.iter() {
+        for line in self.raw_lines.iter() {
             if self.renderer.options.wrap_lines {
                 if line.is_empty() {
                     self.renderer.buffer.push(String::default());
@@ -100,10 +102,22 @@ impl Manager {
                 let distance = self
                     .document
                     .query_distance_to_below_n_lines(self.window.offset, step)?;
-                self.window.offset = self.window.offset.saturating_add(distance);
+                self.window.offset = self.window.offset + distance;
             }
-            Direction::Left => panic!("not supported yet"),
-            Direction::Right => panic!("not supported yet"),
+            Direction::Left => {
+                if !self.renderer.options.wrap_lines {
+                    self.window.horizontal_shift =
+                        self.window.horizontal_shift.saturating_sub(step);
+                }
+            }
+            Direction::Right => {
+                if !self.renderer.options.wrap_lines {
+                    let max_line_len = self.raw_lines.iter().map(|line| line.len()).max().unwrap();
+                    let max_window_shift = max_line_len.saturating_sub(self.window.width);
+                    self.window.horizontal_shift =
+                        std::cmp::min(self.window.horizontal_shift + step, max_window_shift);
+                }
+            }
         }
         Ok(())
     }
