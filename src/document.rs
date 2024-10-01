@@ -79,10 +79,8 @@ impl<R: Read + Seek> Document<R> {
         if offset_begin >= offset_end {
             return Ok(None);
         }
-        if offset_begin > 0 {
-            // actually a temporary hack to make sure first line is not dropped
-            offset_begin -= 1;
-        }
+        // actually a temporary hack to make sure first line is not dropped
+        offset_begin = offset_begin.saturating_sub(1);
 
         // build chunk
         let mut buffer = vec![0; offset_end - offset_begin];
@@ -97,9 +95,9 @@ impl<R: Read + Seek> Document<R> {
 
         if cover_end {
             // handle last line
-            assert!(new_chunk.rows.len() > 0);
+            assert!(!new_chunk.rows.is_empty());
             let mut last_line = new_chunk.rows.pop().unwrap();
-            if content.chars().last().unwrap() == '\n' {
+            if content.ends_with('\n') {
                 last_line.push('\n');
             }
             new_chunk.offset_end -= last_line.len();
@@ -156,10 +154,10 @@ impl<R: Read + Seek> Document<R> {
     fn get_or_load_chunk_by_offset(&mut self, offset: usize) -> Result<&Chunk> {
         info!("[get_or_load_chunk_by_offset] offset: {offset}");
         let chunk_index_opt = self.get_chunk_index_by_offset(offset);
-        let chunk_index = if chunk_index_opt.is_none() {
-            self.load_chunk_around(offset)?.unwrap()
+        let chunk_index = if let Some(chunk_index) = chunk_index_opt {
+            chunk_index
         } else {
-            chunk_index_opt.unwrap()
+            self.load_chunk_around(offset)?.unwrap()
         };
         let chunk = &self.chunks[chunk_index];
         Ok(chunk)

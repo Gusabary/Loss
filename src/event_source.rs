@@ -26,8 +26,8 @@ impl EventSource {
                 event::Event::Key(key) => self.handle_key_press(&key)?,
                 _ => None,
             };
-            if event.is_some() {
-                return Ok(event.unwrap());
+            if let Some(event) = event {
+                return Ok(event);
             }
         }
     }

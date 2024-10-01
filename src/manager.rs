@@ -3,11 +3,10 @@ use std::fs::File;
 use crate::{
     document::Document,
     event_source::{Direction, Event, EventSource},
-    render::{RenderOptions, Renderer},
+    render::Renderer,
     window::Window,
 };
 use anyhow::{Ok, Result};
-use crossterm::terminal;
 use log::info;
 
 pub struct Manager {
