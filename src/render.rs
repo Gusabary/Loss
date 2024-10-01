@@ -7,30 +7,36 @@ use crossterm::{
     ExecutableCommand,
 };
 
-use crate::manager::WindowSize;
-
-pub struct RenderOptions {}
-
-pub fn render(
-    lines: &Vec<String>,
-    window_size: &WindowSize,
-    render_options: &RenderOptions,
-) -> Result<()> {
-    let displayable_lines = lines;
-    let render_buffer = displayable_lines
-        .iter()
-        .map(|row| render_line(row))
-        .collect::<Vec<_>>();
-
-    clear_screen_and_reset_cursor()?;
-    for line in render_buffer {
-        println!("{line}\r");
-    }
-    Ok(())
+#[derive(Debug, Default)]
+pub struct RenderOptions {
+    pub wrap_lines: bool,
 }
 
-fn render_line(line: &str) -> String {
-    format!("{line}")
+#[derive(Debug, Default)]
+pub struct Renderer {
+    pub buffer: Vec<String>,
+    pub options: RenderOptions,
+}
+
+impl Renderer {
+    pub fn render(&self) -> Result<()> {
+        let render_buffer = self
+            .buffer
+            .iter()
+            .map(|row| self.render_line(row))
+            .collect::<Vec<_>>();
+
+        clear_screen_and_reset_cursor()?;
+        for line in render_buffer {
+            println!("{line}\r");
+        }
+
+        Ok(())
+    }
+
+    fn render_line(&self, line: &str) -> String {
+        format!("{line}")
+    }
 }
 
 fn clear_screen_and_reset_cursor() -> Result<()> {

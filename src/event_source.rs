@@ -13,6 +13,7 @@ pub enum Direction {
 pub enum Event {
     WindowMove(Direction, usize),
     Exit,
+    ToggleWrapLine,
 }
 
 pub struct EventSource {}
@@ -35,6 +36,7 @@ impl EventSource {
         if key.modifiers == KeyModifiers::NONE {
             match key.code {
                 KeyCode::Char('q') => Ok(Some(Event::Exit)),
+                KeyCode::Char('w') => Ok(Some(Event::ToggleWrapLine)),
                 KeyCode::Down => Ok(Some(Event::WindowMove(Direction::Down, 1))),
                 KeyCode::Up => Ok(Some(Event::WindowMove(Direction::Up, 1))),
                 KeyCode::Right => Ok(Some(Event::WindowMove(Direction::Right, 1))),

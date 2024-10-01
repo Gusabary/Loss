@@ -48,6 +48,7 @@ fn main() -> Result<()> {
         let filename = args[1].as_str();
         enable_raw_mode().unwrap();
 
+        // todo: catch error and make sure raw mode is disabled when exit
         let mut manager = Manager::new(filename)?;
         manager.run()?;
 
