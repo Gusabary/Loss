@@ -61,12 +61,33 @@ impl Chunk {
         }
         panic!("cannot find line index exactly");
     }
+
+    pub fn query_line_start_offset(&self, index: usize) -> usize {
+        assert!(index <= self.rows.len());
+        self.rows
+            .iter()
+            .take(index)
+            .map(|line| line.len() + 1)
+            .sum::<usize>()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::vec;
+
+    #[test]
+    fn test_query_line_start_offset() {
+        let content = "123456\n12345\n12\n\n123456\n";
+        let chunk = Chunk::build_chunk(content, 0, false, false);
+        assert_eq!(chunk.query_line_start_offset(0), 0);
+        assert_eq!(chunk.query_line_start_offset(1), 7);
+        assert_eq!(chunk.query_line_start_offset(2), 13);
+        assert_eq!(chunk.query_line_start_offset(3), 16);
+        assert_eq!(chunk.query_line_start_offset(4), 17);
+        assert_eq!(chunk.query_line_start_offset(5), 24);
+    }
 
     #[test]
     fn test_query_line_index_exactly_ok() {

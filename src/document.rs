@@ -1,4 +1,5 @@
 use anyhow::{Ok, Result};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 use log::info;
 use std::{
     fs::File,
@@ -6,11 +7,14 @@ use std::{
 };
 
 use crate::chunk::Chunk;
+use crate::log_timestamp::detect_log_timstamp_format;
 
 #[derive(Debug)]
 pub struct Document<R: Read + Seek> {
     reader: R,
     chunks: Vec<Chunk>,
+    log_timestamp_format: Option<String>,
+    log_default_date: Option<NaiveDate>,
     last_line: Option<String>,
     document_size: usize,
     default_chunk_size: usize,
@@ -24,6 +28,8 @@ impl<R: Read + Seek> Document<R> {
         let mut document = Self {
             reader,
             chunks: vec![],
+            log_timestamp_format: None,
+            log_default_date: None,
             last_line: None,
             document_size,
             default_chunk_size: DEFAULT_CHUNK_SIZE,
@@ -316,6 +322,102 @@ impl<R: Read + Seek> Document<R> {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn query_offset_by_timestamp(
+        &mut self,
+        date: Option<NaiveDate>,
+        time: NaiveTime,
+    ) -> Result<Option<usize>> {
+        if self.chunks.is_empty() {
+            // empty file or only single line
+            return Ok(Some(0));
+        }
+        if self.log_timestamp_format.is_none() {
+            self.load_log_timestamp_format_and_default_date();
+        }
+        if self.log_timestamp_format.is_none() {
+            // cannot detect log timestamp format or default date
+            return Ok(None);
+        }
+        let date = date.unwrap_or(self.log_default_date.unwrap());
+        let target_datetime = NaiveDateTime::new(date, time);
+
+        let mut offset_begin = 0;
+        let mut offset_end = self.last_line_start_offset();
+        let timestamp_format = self.log_timestamp_format.clone().unwrap();
+        let mut offset = (offset_begin + offset_end) / 2;
+        loop {
+            let chunk = self.get_or_load_chunk_by_offset(offset)?;
+            let index = chunk.query_line_index(offset);
+            if let Result::Ok((datetime, _)) =
+                NaiveDateTime::parse_and_remainder(&chunk.rows[index], &timestamp_format)
+            {
+                if datetime >= target_datetime {
+                    offset_end = offset;
+                } else {
+                    offset_begin = offset;
+                }
+                if offset_begin + DEFAULT_CHUNK_SIZE >= offset_end {
+                    return Ok(Some(self.linear_search_timestamp(
+                        offset_begin,
+                        offset_end,
+                        target_datetime,
+                    )?));
+                }
+                offset = (offset_begin + offset_end) / 2;
+            } else {
+                // a log line without timestamp, try next line
+                offset = chunk.query_line_start_offset(index + 1);
+                if offset >= offset_end {
+                    return Ok(None);
+                }
+            }
+        }
+    }
+
+    fn load_log_timestamp_format_and_default_date(&mut self) {
+        assert!(self.log_timestamp_format.is_none() && self.log_default_date.is_none());
+        assert!(!self.chunks.is_empty());
+        const SAMPLE_LINE_COUNT: usize = 100;
+        for line in self.chunks[0].rows.iter().take(SAMPLE_LINE_COUNT) {
+            if let Some(fmt) = detect_log_timstamp_format(line) {
+                self.log_timestamp_format = Some(fmt.clone());
+                self.log_default_date = Some(
+                    NaiveDateTime::parse_and_remainder(line, &fmt)
+                        .unwrap()
+                        .0
+                        .date(),
+                );
+                return;
+            }
+        }
+    }
+
+    fn linear_search_timestamp(
+        &mut self,
+        offset_begin: usize,
+        offset_end: usize,
+        target: NaiveDateTime,
+    ) -> Result<usize> {
+        let timestamp_format = self.log_timestamp_format.clone().unwrap();
+        let mut offset = offset_begin;
+        while offset < offset_end {
+            let chunk = self.get_or_load_chunk_by_offset(offset)?;
+            offset = chunk.offset_begin;
+            for line in chunk.rows.iter() {
+                if let Result::Ok((datetime, _)) =
+                    NaiveDateTime::parse_and_remainder(line, &timestamp_format)
+                {
+                    if datetime >= target {
+                        return Ok(offset);
+                    }
+                }
+                offset += line.len() + 1;
+            }
+            assert_eq!(offset, chunk.offset_end);
+        }
+        Ok(offset_end)
     }
 
     pub fn assert_offset_is_at_line_start(&mut self, offset: usize) -> Result<()> {

@@ -23,7 +23,7 @@ impl Direction {
 
 #[derive(Debug, PartialEq)]
 pub enum PromptAction {
-    Start(Direction),
+    Start(Option<Direction>),
     Content(String),
     Enter(String),
     Cancel,
@@ -41,11 +41,13 @@ pub enum Event {
     Previous,
     SeekToHome,
     SeekToEnd,
+    JumpToTimestamp(PromptAction),
 }
 
 #[derive(Debug, Default)]
 pub struct EventSource {
     search_prompt: Option<String>,
+    timestamp_prompt: Option<String>,
 }
 
 impl EventSource {
@@ -69,9 +71,15 @@ impl EventSource {
 
     fn handle_key_press(&mut self, key: &KeyEvent) -> Option<Event> {
         if self.search_prompt.is_some() {
-            let action = self.handle_search_prompt(key);
-            if let Some(action) = action {
+            if let Some(action) = handle_prompt(&mut self.search_prompt, key) {
                 return Some(Event::Search(action));
+            } else {
+                return None;
+            }
+        }
+        if self.timestamp_prompt.is_some() {
+            if let Some(action) = handle_prompt(&mut self.timestamp_prompt, key) {
+                return Some(Event::JumpToTimestamp(action));
             } else {
                 return None;
             }
@@ -82,11 +90,15 @@ impl EventSource {
                 KeyCode::Char('w') => Some(Event::ToggleWrapLine),
                 KeyCode::Char('/') => {
                     self.search_prompt = Some(String::default());
-                    Some(Event::Search(PromptAction::Start(Direction::Down)))
+                    Some(Event::Search(PromptAction::Start(Some(Direction::Down))))
                 }
                 KeyCode::Char('?') => {
                     self.search_prompt = Some(String::default());
-                    Some(Event::Search(PromptAction::Start(Direction::Up)))
+                    Some(Event::Search(PromptAction::Start(Some(Direction::Up))))
+                }
+                KeyCode::Char('t') => {
+                    self.timestamp_prompt = Some(String::default());
+                    Some(Event::JumpToTimestamp(PromptAction::Start(None)))
                 }
                 KeyCode::Char('n') => Some(Event::Next),
                 KeyCode::Char('N') => Some(Event::Previous),
@@ -112,33 +124,33 @@ impl EventSource {
             None
         }
     }
+}
 
-    fn handle_search_prompt(&mut self, key: &KeyEvent) -> Option<PromptAction> {
-        assert!(self.search_prompt.is_some());
-        let search_prompt = self.search_prompt.as_mut().unwrap();
-        if key.modifiers != KeyModifiers::NONE && key.modifiers != KeyModifiers::SHIFT {
-            None
-        } else {
-            match key.code {
-                KeyCode::Char(c) => {
-                    search_prompt.push(c);
-                    Some(PromptAction::Content(search_prompt.clone()))
-                }
-                KeyCode::Backspace => {
-                    search_prompt.pop();
-                    Some(PromptAction::Content(search_prompt.clone()))
-                }
-                KeyCode::Enter => {
-                    let prompt = search_prompt.clone();
-                    self.search_prompt = None;
-                    Some(PromptAction::Enter(prompt))
-                }
-                KeyCode::Esc => {
-                    self.search_prompt = None;
-                    Some(PromptAction::Cancel)
-                }
-                _ => None,
+fn handle_prompt(prompt_opt: &mut Option<String>, key: &KeyEvent) -> Option<PromptAction> {
+    assert!(prompt_opt.is_some());
+    let prompt = prompt_opt.as_mut().unwrap();
+    if key.modifiers != KeyModifiers::NONE && key.modifiers != KeyModifiers::SHIFT {
+        None
+    } else {
+        match key.code {
+            KeyCode::Char(c) => {
+                prompt.push(c);
+                Some(PromptAction::Content(prompt.to_string()))
             }
+            KeyCode::Backspace => {
+                prompt.pop();
+                Some(PromptAction::Content(prompt.to_string()))
+            }
+            KeyCode::Enter => {
+                let prompt = prompt.clone();
+                *prompt_opt = None;
+                Some(PromptAction::Enter(prompt))
+            }
+            KeyCode::Esc => {
+                *prompt_opt = None;
+                Some(PromptAction::Cancel)
+            }
+            _ => None,
         }
     }
 }
@@ -156,7 +168,7 @@ mod tests {
                 KeyCode::Char('/'),
                 KeyModifiers::NONE
             ))),
-            Some(Event::Search(PromptAction::Start(Direction::Down)))
+            Some(Event::Search(PromptAction::Start(Some(Direction::Down))))
         );
         assert_eq!(
             source.handle_raw_event(&RawEvent::Key(KeyEvent::new(
@@ -184,7 +196,7 @@ mod tests {
                 KeyCode::Char('?'),
                 KeyModifiers::NONE
             ))),
-            Some(Event::Search(PromptAction::Start(Direction::Up)))
+            Some(Event::Search(PromptAction::Start(Some(Direction::Up))))
         );
         let mut content = String::default();
         for c in 'a'..='c' {

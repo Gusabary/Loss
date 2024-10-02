@@ -6,6 +6,7 @@ use std::env;
 mod chunk;
 mod document;
 mod event_source;
+mod log_timestamp;
 mod manager;
 mod render;
 mod window;
