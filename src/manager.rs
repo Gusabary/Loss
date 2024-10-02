@@ -98,6 +98,8 @@ impl Manager {
             Event::Search(action) => self.on_search_event(action)?,
             Event::Next => self.search_next(Direction::Down, true)?,
             Event::Previous => self.search_next(Direction::Up, true)?,
+            Event::SeekToEnd => self.window.offset = self.document.last_line_start_offset(),
+            Event::SeekToHome => self.window.offset = 0,
         }
         info!("[run] window.offset: {}", self.window.offset);
         Ok(false)

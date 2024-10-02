@@ -39,6 +39,8 @@ pub enum Event {
     // todo: maybe aggregate to a Jump event ?
     Next,
     Previous,
+    SeekToHome,
+    SeekToEnd,
 }
 
 #[derive(Debug, Default)]
@@ -92,6 +94,18 @@ impl EventSource {
                 KeyCode::Up => Some(Event::WindowMove(Direction::Up, 1)),
                 KeyCode::Right => Some(Event::WindowMove(Direction::Right, 1)),
                 KeyCode::Left => Some(Event::WindowMove(Direction::Left, 1)),
+                KeyCode::PageDown => Some(Event::WindowMove(Direction::Down, 5)),
+                KeyCode::PageUp => Some(Event::WindowMove(Direction::Up, 5)),
+                KeyCode::Home => Some(Event::SeekToHome),
+                KeyCode::End => Some(Event::SeekToEnd),
+                _ => None,
+            }
+        } else if key.modifiers == KeyModifiers::CONTROL {
+            match key.code {
+                KeyCode::Down => Some(Event::WindowMove(Direction::Down, 5)),
+                KeyCode::Up => Some(Event::WindowMove(Direction::Up, 5)),
+                KeyCode::PageDown => Some(Event::WindowMove(Direction::Down, 20)),
+                KeyCode::PageUp => Some(Event::WindowMove(Direction::Up, 20)),
                 _ => None,
             }
         } else {
