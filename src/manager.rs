@@ -102,6 +102,7 @@ impl Manager {
             Event::SeekToEnd => self.window.offset = self.document.last_line_start_offset(),
             Event::SeekToHome => self.window.offset = 0,
             Event::JumpToTimestamp(action) => self.on_jump_to_timestamp_event(action)?,
+            Event::TerminalResize(width, height) => self.window.resize(width, height),
         }
         info!("[run] window.offset: {}", self.window.offset);
         Ok(false)

@@ -42,6 +42,7 @@ pub enum Event {
     SeekToHome,
     SeekToEnd,
     JumpToTimestamp(PromptAction),
+    TerminalResize(usize, usize),
 }
 
 #[derive(Debug, Default)]
@@ -65,6 +66,7 @@ impl EventSource {
         info!("raw event: {:?}", raw_event);
         match raw_event {
             event::Event::Key(key) => self.handle_key_press(key),
+            event::Event::Resize(width, height) => Some(Event::TerminalResize(*width as usize, *height as usize)),
             _ => None,
         }
     }
