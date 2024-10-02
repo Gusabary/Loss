@@ -13,11 +13,11 @@ pub enum Direction {
 impl Direction {
     #[allow(dead_code)]
     pub fn is_horizontal(&self) -> bool {
-        return *self == Direction::Left || *self == Direction::Right;
+        *self == Direction::Left || *self == Direction::Right
     }
 
     pub fn is_vertical(&self) -> bool {
-        return *self == Direction::Up || *self == Direction::Down;
+        *self == Direction::Up || *self == Direction::Down
     }
 }
 
@@ -62,7 +62,7 @@ impl EventSource {
     fn handle_raw_event(&mut self, raw_event: &event::Event) -> Option<Event> {
         info!("raw event: {:?}", raw_event);
         match raw_event {
-            event::Event::Key(key) => self.handle_key_press(&key),
+            event::Event::Key(key) => self.handle_key_press(key),
             _ => None,
         }
     }

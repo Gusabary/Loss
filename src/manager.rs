@@ -148,7 +148,7 @@ impl Manager {
             PromptAction::Start(direction) => {
                 assert!(direction.is_vertical());
                 self.context.searching_direction = Some(direction);
-                self.renderer.bottom_line_text = format!("Search: ");
+                self.renderer.bottom_line_text = "Search: ".to_string();
             }
             PromptAction::Content(content) => {
                 self.renderer.bottom_line_text = format!("Search: {content}")
@@ -191,7 +191,7 @@ impl Manager {
                 .move_offset_by(distance + extra_distance, direction);
             self.renderer.options.highlight_text = Some(content.clone());
         } else {
-            self.renderer.oneoff_bottom_line_text = Some(format!("Not found"));
+            self.renderer.oneoff_bottom_line_text = Some("Not found".to_string());
         }
         Ok(())
     }

@@ -53,7 +53,7 @@ impl Renderer {
                 return format!("{}{}{}\r", &line[..index], styled, &line[end..]);
             }
         }
-        format!("{line}")
+        line.to_string()
     }
 }
 
