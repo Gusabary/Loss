@@ -79,7 +79,9 @@ impl Manager {
                 self.renderer.buffer.push(displayed_line.to_string());
             }
         }
-        self.renderer.buffer.truncate(self.window.height);
+        self.renderer
+            .buffer
+            .resize(self.window.height, "~".to_string());
         self.renderer.render()?;
         Ok(())
     }
