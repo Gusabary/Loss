@@ -1,6 +1,8 @@
 use anyhow::{Ok, Result};
 use crossterm::terminal;
 
+use crate::event_source::Direction;
+
 #[derive(Debug)]
 pub struct Window {
     pub height: usize,
@@ -19,5 +21,14 @@ impl Window {
             offset: 0,
             horizontal_shift: 0,
         })
+    }
+
+    pub fn move_offset_by(&mut self, distance: usize, direction: Direction) {
+        assert!(direction.is_vertical());
+        if direction == Direction::Up {
+            self.offset = self.offset.saturating_sub(distance);
+        } else {
+            self.offset += distance;
+        }
     }
 }

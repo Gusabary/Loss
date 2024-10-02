@@ -2,19 +2,26 @@ use std::fs::File;
 
 use crate::{
     document::Document,
-    event_source::{Direction, Event, EventSource},
-    render::Renderer,
+    event_source::{Direction, Event, EventSource, PromptAction},
+    render::{clear_screen_and_reset_cursor, Renderer},
     window::Window,
 };
 use anyhow::{Ok, Result};
 use log::info;
+
+#[derive(Debug, Default)]
+struct Context {
+    raw_lines: Vec<String>,
+    searching_direction: Option<Direction>,
+    searching_content: Option<String>,
+}
 
 pub struct Manager {
     document: Document<File>,
     window: Window,
     event_source: EventSource,
     renderer: Renderer,
-    raw_lines: Vec<String>,
+    context: Context,
 }
 
 impl Manager {
@@ -23,9 +30,9 @@ impl Manager {
         Ok(Manager {
             document: Document::<File>::open_file(filename)?,
             window: Window::new()?,
-            event_source: EventSource {},
+            event_source: EventSource::default(),
             renderer: Renderer::default(),
-            raw_lines: Vec::<String>::default(),
+            context: Context::default(),
         })
     }
 
@@ -35,18 +42,19 @@ impl Manager {
             let should_exit = self.listen_and_dispatch_event()?;
             self.ensure_consistency()?;
             if should_exit {
+                clear_screen_and_reset_cursor()?;
                 return Ok(());
             }
         }
     }
 
     fn fill_buffer_and_render(&mut self) -> Result<()> {
-        self.raw_lines = self
+        self.context.raw_lines = self
             .document
             .query_lines(self.window.offset, self.window.height)?;
 
         self.renderer.buffer.clear();
-        for line in self.raw_lines.iter() {
+        for line in self.context.raw_lines.iter() {
             if self.renderer.options.wrap_lines {
                 if line.is_empty() {
                     self.renderer.buffer.push(String::default());
@@ -85,6 +93,9 @@ impl Manager {
                 self.renderer.options.wrap_lines = !self.renderer.options.wrap_lines
             }
             Event::WindowMove(direction, step) => self.on_window_move_event(direction, step)?,
+            Event::Search(action) => self.on_search_event(action)?,
+            Event::Next => self.search_next(Direction::Down, true)?,
+            Event::Previous => self.search_next(Direction::Up, true)?,
         }
         info!("[run] window.offset: {}", self.window.offset);
         Ok(false)
@@ -96,13 +107,13 @@ impl Manager {
                 let distance = self
                     .document
                     .query_distance_to_above_n_lines(self.window.offset, step)?;
-                self.window.offset = self.window.offset.saturating_sub(distance);
+                self.window.move_offset_by(distance, direction);
             }
             Direction::Down => {
                 let distance = self
                     .document
                     .query_distance_to_below_n_lines(self.window.offset, step)?;
-                self.window.offset = self.window.offset + distance;
+                self.window.move_offset_by(distance, direction);
             }
             Direction::Left => {
                 if !self.renderer.options.wrap_lines {
@@ -112,12 +123,71 @@ impl Manager {
             }
             Direction::Right => {
                 if !self.renderer.options.wrap_lines {
-                    let max_line_len = self.raw_lines.iter().map(|line| line.len()).max().unwrap();
+                    let max_line_len = self
+                        .context
+                        .raw_lines
+                        .iter()
+                        .map(|line| line.len())
+                        .max()
+                        .unwrap();
                     let max_window_shift = max_line_len.saturating_sub(self.window.width);
                     self.window.horizontal_shift =
                         std::cmp::min(self.window.horizontal_shift + step, max_window_shift);
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn on_search_event(&mut self, action: PromptAction) -> Result<()> {
+        match action {
+            PromptAction::Start(direction) => {
+                assert!(direction.is_vertical());
+                self.context.searching_direction = Some(direction);
+                self.renderer.bottom_line_text = format!("Search: ");
+            }
+            PromptAction::Content(content) => {
+                self.renderer.bottom_line_text = format!("Search: {content}")
+            }
+            PromptAction::Cancel => {
+                self.context.searching_direction = None;
+                self.renderer.bottom_line_text = String::default();
+            }
+            PromptAction::Enter(content) => {
+                self.renderer.bottom_line_text = String::default();
+                self.context.searching_content = Some(content.clone());
+                self.search_next(self.context.searching_direction.unwrap(), false)?;
+                self.context.searching_direction = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn search_next(&mut self, direction: Direction, from_next_event: bool) -> Result<()> {
+        assert!(direction.is_vertical());
+        if from_next_event && self.context.searching_content.is_none() {
+            return Ok(());
+        }
+        let content = self.context.searching_content.as_ref().unwrap();
+        let mut extra_distance = 0;
+        let distance = if direction == Direction::Up {
+            self.document
+                .query_distance_to_prev_match(self.window.offset, content)?
+        } else {
+            if from_next_event {
+                extra_distance = self
+                    .document
+                    .query_distance_to_below_n_lines(self.window.offset, 1)?;
+            }
+            self.document
+                .query_distance_to_next_match(self.window.offset + extra_distance, content)?
+        };
+        if let Some(distance) = distance {
+            self.window
+                .move_offset_by(distance + extra_distance, direction);
+            self.renderer.options.highlight_text = Some(content.clone());
+        } else {
+            self.renderer.oneoff_bottom_line_text = Some(format!("Not found"));
         }
         Ok(())
     }

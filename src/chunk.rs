@@ -1,7 +1,5 @@
 use core::panic;
 
-use log::info;
-
 #[derive(Debug, PartialEq)]
 pub struct Chunk {
     pub offset_begin: usize,
@@ -16,7 +14,6 @@ impl Chunk {
         drop_first: bool,
         drop_last: bool,
     ) -> Chunk {
-        info!("[build_chunk] offset: {content_offset} content: \n{content}");
         let mut cur_index = 0;
         if drop_first {
             let first_line_break = content.find('\n');
