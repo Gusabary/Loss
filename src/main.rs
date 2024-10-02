@@ -10,6 +10,7 @@ mod log_timestamp;
 mod manager;
 mod render;
 mod window;
+mod prompt;
 
 fn print_version() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");

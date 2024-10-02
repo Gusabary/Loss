@@ -2,6 +2,8 @@ use anyhow::{Ok, Result};
 use crossterm::event::{self, read, KeyCode, KeyEvent, KeyModifiers};
 use log::info;
 
+use crate::prompt::{PromptAction, PromptHistory};
+
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Direction {
     Up,
@@ -22,15 +24,6 @@ impl Direction {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PromptAction {
-    Start(Option<Direction>),
-    Content(String),
-    Enter(String),
-    Cancel,
-    // todo: Direction for history
-}
-
-#[derive(Debug, PartialEq)]
 pub enum Event {
     WindowMove(Direction, usize),
     Exit,
@@ -48,7 +41,9 @@ pub enum Event {
 #[derive(Debug, Default)]
 pub struct EventSource {
     search_prompt: Option<String>,
+    search_history: PromptHistory,
     timestamp_prompt: Option<String>,
+    timestamp_history: PromptHistory,
 }
 
 impl EventSource {
@@ -73,14 +68,14 @@ impl EventSource {
 
     fn handle_key_press(&mut self, key: &KeyEvent) -> Option<Event> {
         if self.search_prompt.is_some() {
-            if let Some(action) = handle_prompt(&mut self.search_prompt, key) {
+            if let Some(action) = handle_prompt(key, &mut self.search_prompt, &mut self.search_history) {
                 return Some(Event::Search(action));
             } else {
                 return None;
             }
         }
         if self.timestamp_prompt.is_some() {
-            if let Some(action) = handle_prompt(&mut self.timestamp_prompt, key) {
+            if let Some(action) = handle_prompt(key, &mut self.timestamp_prompt, &mut self.timestamp_history) {
                 return Some(Event::JumpToTimestamp(action));
             } else {
                 return None;
@@ -92,14 +87,17 @@ impl EventSource {
                 KeyCode::Char('w') => Some(Event::ToggleWrapLine),
                 KeyCode::Char('/') => {
                     self.search_prompt = Some(String::default());
+                    self.search_history.reset_index();
                     Some(Event::Search(PromptAction::Start(Some(Direction::Down))))
                 }
                 KeyCode::Char('?') => {
                     self.search_prompt = Some(String::default());
+                    self.search_history.reset_index();
                     Some(Event::Search(PromptAction::Start(Some(Direction::Up))))
                 }
                 KeyCode::Char('t') => {
                     self.timestamp_prompt = Some(String::default());
+                    self.timestamp_history.reset_index();
                     Some(Event::JumpToTimestamp(PromptAction::Start(None)))
                 }
                 KeyCode::Char('n') => Some(Event::Next),
@@ -128,7 +126,7 @@ impl EventSource {
     }
 }
 
-fn handle_prompt(prompt_opt: &mut Option<String>, key: &KeyEvent) -> Option<PromptAction> {
+fn handle_prompt(key: &KeyEvent, prompt_opt: &mut Option<String>, history: &mut PromptHistory) -> Option<PromptAction> {
     assert!(prompt_opt.is_some());
     let prompt = prompt_opt.as_mut().unwrap();
     if key.modifiers != KeyModifiers::NONE && key.modifiers != KeyModifiers::SHIFT {
@@ -145,12 +143,21 @@ fn handle_prompt(prompt_opt: &mut Option<String>, key: &KeyEvent) -> Option<Prom
             }
             KeyCode::Enter => {
                 let prompt = prompt.clone();
+                history.push(&prompt);
                 *prompt_opt = None;
                 Some(PromptAction::Enter(prompt))
             }
             KeyCode::Esc => {
                 *prompt_opt = None;
                 Some(PromptAction::Cancel)
+            }
+            KeyCode::Up => {
+                *prompt = history.previous_one();
+                Some(PromptAction::Content(prompt.to_string()))
+            }
+            KeyCode::Down => {
+                *prompt = history.next_one();
+                Some(PromptAction::Content(prompt.to_string()))
             }
             _ => None,
         }

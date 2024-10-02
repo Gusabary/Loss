@@ -1,11 +1,7 @@
 use std::fs::File;
 
 use crate::{
-    document::Document,
-    event_source::{Direction, Event, EventSource, PromptAction},
-    log_timestamp::parse_log_timestamp,
-    render::{clear_screen_and_reset_cursor, Renderer},
-    window::Window,
+    document::Document, event_source::{Direction, Event, EventSource}, log_timestamp::parse_log_timestamp, prompt::PromptAction, render::{clear_screen_and_reset_cursor, Renderer}, window::Window
 };
 use anyhow::{Ok, Result};
 use log::info;
