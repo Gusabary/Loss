@@ -21,6 +21,15 @@ impl Direction {
     pub fn is_vertical(&self) -> bool {
         *self == Direction::Up || *self == Direction::Down
     }
+
+    pub fn above_or_below(&self) -> &str {
+        assert!(self.is_vertical());
+        if *self == Direction::Up {
+            "above"
+        } else {
+            "below"
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -29,21 +38,20 @@ pub enum Event {
     Exit,
     ToggleWrapLine,
     Search(PromptAction),
-    // todo: maybe aggregate to a Jump event ?
     Next,
     Previous,
     SeekToHome,
     SeekToEnd,
     JumpToTimestamp(PromptAction),
+    JumpByLines(PromptAction),
     TerminalResize(usize, usize),
 }
 
 #[derive(Debug, Default)]
 pub struct EventSource {
     search_prompt: Prompt,
-    // search_history: PromptHistory,
     timestamp_prompt: Prompt,
-    // timestamp_history: PromptHistory,
+    jump_prompt: Prompt,
 }
 
 impl EventSource {
@@ -74,9 +82,15 @@ impl EventSource {
         }
         if self.timestamp_prompt.is_active() {
             return self
-                .search_prompt
+                .timestamp_prompt
                 .handle_raw_event(key)
                 .map(Event::JumpToTimestamp);
+        }
+        if self.jump_prompt.is_active() {
+            return self
+                .jump_prompt
+                .handle_raw_event(key)
+                .map(Event::JumpByLines);
         }
         if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT {
             match key.code {
@@ -104,6 +118,16 @@ impl EventSource {
                 KeyCode::PageUp => Some(Event::WindowMove(Direction::Up, 5)),
                 KeyCode::Home => Some(Event::SeekToHome),
                 KeyCode::End => Some(Event::SeekToEnd),
+                KeyCode::Char('j') => {
+                    self.jump_prompt.start();
+                    Some(Event::JumpByLines(PromptAction::Start(Some(
+                        Direction::Down,
+                    ))))
+                }
+                KeyCode::Char('J') => {
+                    self.jump_prompt.start();
+                    Some(Event::JumpByLines(PromptAction::Start(Some(Direction::Up))))
+                }
                 _ => None,
             }
         } else if key.modifiers == KeyModifiers::CONTROL {

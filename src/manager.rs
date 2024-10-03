@@ -17,6 +17,7 @@ struct Context {
     raw_lines: Vec<String>,
     searching_direction: Option<Direction>,
     searching_content: Option<String>,
+    jumping_direction: Option<Direction>,
 }
 
 pub struct Manager {
@@ -114,6 +115,7 @@ impl Manager {
             Event::SeekToEnd => self.window.offset = self.document.last_line_start_offset(),
             Event::SeekToHome => self.window.offset = 0,
             Event::JumpToTimestamp(action) => self.on_jump_to_timestamp_event(action)?,
+            Event::JumpByLines(action) => self.on_jump_by_lines_event(action)?,
             Event::TerminalResize(width, height) => self.window.resize(width, height),
         }
         info!("[run] window.offset: {}", self.window.offset);
@@ -237,6 +239,41 @@ impl Manager {
                 } else {
                     self.status_bar.set_oneoff_error_text("Invalid timestamp");
                 }
+            }
+        }
+        Ok(())
+    }
+
+    fn on_jump_by_lines_event(&mut self, action: PromptAction) -> Result<()> {
+        match action {
+            PromptAction::Start(direction) => {
+                assert!(direction.unwrap().is_vertical());
+                self.context.jumping_direction = direction;
+                let s = direction.as_ref().unwrap().above_or_below();
+                self.status_bar.set_text(&format!("Jump to {s} N lines: "));
+            }
+            PromptAction::Content(content) => {
+                let s = self
+                    .context
+                    .jumping_direction
+                    .as_ref()
+                    .unwrap()
+                    .above_or_below();
+                self.status_bar
+                    .set_text(&format!("Jump to {s} N lines: {content}"));
+            }
+            PromptAction::Cancel => {
+                self.context.jumping_direction = None;
+                self.status_bar.clear_text();
+            }
+            PromptAction::Enter(content) => {
+                self.status_bar.clear_text();
+                if let std::result::Result::Ok(step) = content.parse::<usize>() {
+                    self.on_window_move_event(self.context.jumping_direction.unwrap(), step)?;
+                } else {
+                    self.status_bar.set_oneoff_error_text("Invalid line count");
+                }
+                self.context.jumping_direction = None;
             }
         }
         Ok(())
