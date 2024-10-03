@@ -32,7 +32,7 @@ impl PromptHistory {
     }
 
     pub fn next_one(&mut self) -> String {
-        self.current_index =  std::cmp::min(self.current_index + 1, self.prompts.len());
+        self.current_index = std::cmp::min(self.current_index + 1, self.prompts.len());
         self.current_one()
     }
 
@@ -76,5 +76,4 @@ mod tests {
         history.push("123");
         assert_eq!(history.prompts.len(), 3);
     }
-
 }

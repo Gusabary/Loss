@@ -8,9 +8,10 @@ mod document;
 mod event_source;
 mod log_timestamp;
 mod manager;
-mod render;
-mod window;
 mod prompt;
+mod render;
+mod status_bar;
+mod window;
 
 fn print_version() {
     const VERSION: &str = env!("CARGO_PKG_VERSION");

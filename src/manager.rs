@@ -1,7 +1,13 @@
 use std::fs::File;
 
 use crate::{
-    document::Document, event_source::{Direction, Event, EventSource}, log_timestamp::parse_log_timestamp, prompt::PromptAction, render::{clear_screen_and_reset_cursor, Renderer}, window::Window
+    document::Document,
+    event_source::{Direction, Event, EventSource},
+    log_timestamp::parse_log_timestamp,
+    prompt::PromptAction,
+    render::{clear_screen_and_reset_cursor, Renderer},
+    status_bar::StatusBar,
+    window::Window,
 };
 use anyhow::{Ok, Result};
 use log::info;
@@ -16,6 +22,7 @@ struct Context {
 pub struct Manager {
     document: Document<File>,
     window: Window,
+    status_bar: StatusBar,
     event_source: EventSource,
     renderer: Renderer,
     context: Context,
@@ -27,6 +34,7 @@ impl Manager {
         Ok(Manager {
             document: Document::<File>::open_file(filename)?,
             window: Window::new()?,
+            status_bar: StatusBar::default(),
             event_source: EventSource::default(),
             renderer: Renderer::default(),
             context: Context::default(),
@@ -79,6 +87,14 @@ impl Manager {
         self.renderer
             .buffer
             .resize(self.window.height, "~".to_string());
+
+        let ratio = if self.document.last_line_start_offset() == 0 {
+            100
+        } else {
+            self.window.offset * 100 / self.document.last_line_start_offset()
+        };
+        self.renderer.status_bar_render_text =
+            self.status_bar.render_text(self.window.width, ratio);
         self.renderer.render()?;
         Ok(())
     }
@@ -147,17 +163,17 @@ impl Manager {
             PromptAction::Start(direction) => {
                 assert!(direction.unwrap().is_vertical());
                 self.context.searching_direction = direction;
-                self.renderer.bottom_line_text = "Search: ".to_string();
+                self.status_bar.set_text("Search: ");
             }
             PromptAction::Content(content) => {
-                self.renderer.bottom_line_text = format!("Search: {content}")
+                self.status_bar.set_text(&format!("Search: {content}"));
             }
             PromptAction::Cancel => {
                 self.context.searching_direction = None;
-                self.renderer.bottom_line_text = String::default();
+                self.status_bar.clear_text();
             }
             PromptAction::Enter(content) => {
-                self.renderer.bottom_line_text = String::default();
+                self.status_bar.clear_text();
                 self.context.searching_content = Some(content.clone());
                 self.search_next(self.context.searching_direction.unwrap(), false)?;
                 self.context.searching_direction = None;
@@ -190,7 +206,7 @@ impl Manager {
                 .move_offset_by(distance + extra_distance, direction);
             self.renderer.options.highlight_text = Some(content.clone());
         } else {
-            self.renderer.oneoff_bottom_line_text = Some("Not found".to_string());
+            self.status_bar.set_oneoff_error_text("Not found");
         }
         Ok(())
     }
@@ -199,26 +215,27 @@ impl Manager {
         match action {
             PromptAction::Start(direction) => {
                 assert!(direction.is_none());
-                self.renderer.bottom_line_text = "Jump to timestamp: ".to_string();
+                self.status_bar.set_text("Jump to timestamp");
             }
             PromptAction::Content(content) => {
-                self.renderer.bottom_line_text = format!("Jump to timestamp: {content}")
+                self.status_bar
+                    .set_text(&format!("Jump to timestamp: {content}"));
             }
             PromptAction::Cancel => {
-                self.renderer.bottom_line_text = String::default();
+                self.status_bar.clear_text();
             }
             PromptAction::Enter(content) => {
-                self.renderer.bottom_line_text = String::default();
+                self.status_bar.clear_text();
                 let (date, time) = parse_log_timestamp(&content);
                 if let Some(time) = time {
                     if let Some(offset) = self.document.query_offset_by_timestamp(date, time)? {
                         self.window.offset = offset
                     } else {
-                        self.renderer.oneoff_bottom_line_text =
-                            Some("Cannot jump to timestamp".to_string());
+                        self.status_bar
+                            .set_oneoff_error_text("Cannot jump to timestamp");
                     }
                 } else {
-                    self.renderer.oneoff_bottom_line_text = Some("Invalid timestamp".to_string());
+                    self.status_bar.set_oneoff_error_text("Invalid timestamp");
                 }
             }
         }

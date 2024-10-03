@@ -18,8 +18,7 @@ pub struct RenderOptions {
 pub struct Renderer {
     pub buffer: Vec<String>,
     pub options: RenderOptions,
-    pub bottom_line_text: String,
-    pub oneoff_bottom_line_text: Option<String>,
+    pub status_bar_render_text: String,
 }
 
 impl Renderer {
@@ -35,12 +34,7 @@ impl Renderer {
             println!("{line}\r");
         }
 
-        if let Some(text) = &self.oneoff_bottom_line_text {
-            print!("{}", text);
-            self.oneoff_bottom_line_text = None;
-        } else {
-            print!("{}", self.bottom_line_text);
-        }
+        print!("{}", self.status_bar_render_text);
         stdout().flush().unwrap();
         Ok(())
     }
