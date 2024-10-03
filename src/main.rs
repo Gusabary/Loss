@@ -3,6 +3,7 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use manager::Manager;
 use std::env;
 
+mod bookmark;
 mod chunk;
 mod document;
 mod event_source;

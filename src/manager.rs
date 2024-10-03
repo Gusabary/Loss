@@ -1,6 +1,7 @@
 use std::fs::File;
 
 use crate::{
+    bookmark::BookmarkStore,
     document::Document,
     event_source::{Direction, Event, EventSource},
     log_timestamp::parse_log_timestamp,
@@ -26,6 +27,7 @@ pub struct Manager {
     status_bar: StatusBar,
     event_source: EventSource,
     renderer: Renderer,
+    bookmark_store: BookmarkStore,
     context: Context,
 }
 
@@ -38,6 +40,7 @@ impl Manager {
             status_bar: StatusBar::default(),
             event_source: EventSource::default(),
             renderer: Renderer::default(),
+            bookmark_store: BookmarkStore::default(),
             context: Context::default(),
         })
     }
@@ -117,6 +120,7 @@ impl Manager {
             Event::JumpToTimestamp(action) => self.on_jump_to_timestamp_event(action)?,
             Event::JumpByLines(action) => self.on_jump_by_lines_event(action)?,
             Event::TerminalResize(width, height) => self.window.resize(width, height),
+            Event::NewBookmark(action) => self.on_new_bookmark_event(action)?,
         }
         info!("[run] window.offset: {}", self.window.offset);
         Ok(false)
@@ -274,6 +278,37 @@ impl Manager {
                     self.status_bar.set_oneoff_error_text("Invalid line count");
                 }
                 self.context.jumping_direction = None;
+            }
+        }
+        Ok(())
+    }
+
+    fn on_new_bookmark_event(&mut self, action: PromptAction) -> Result<()> {
+        match action {
+            PromptAction::Start(direction) => {
+                assert!(direction.is_none());
+                self.status_bar.set_text("New bookmark: ");
+            }
+            PromptAction::Content(content) => {
+                self.status_bar
+                    .set_text(&format!("New bookmark: {content}"));
+            }
+            PromptAction::Cancel => {
+                self.status_bar.clear_text();
+            }
+            PromptAction::Enter(content) => {
+                self.status_bar.clear_text();
+                const BOOKMARK_NAME_MAX_LEN: usize = 10;
+                if content.len() > BOOKMARK_NAME_MAX_LEN {
+                    self.status_bar.set_oneoff_error_text(&format!(
+                        "Bookmark name should have no more than {BOOKMARK_NAME_MAX_LEN} chars"
+                    ));
+                } else {
+                    self.bookmark_store
+                        .new_bookmark(&content, self.window.offset);
+                    self.status_bar
+                        .set_oneoff_error_text(&format!("Bookmark saved: {content}"));
+                }
             }
         }
         Ok(())

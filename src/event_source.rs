@@ -45,6 +45,7 @@ pub enum Event {
     JumpToTimestamp(PromptAction),
     JumpByLines(PromptAction),
     TerminalResize(usize, usize),
+    NewBookmark(PromptAction),
 }
 
 #[derive(Debug, Default)]
@@ -52,6 +53,7 @@ pub struct EventSource {
     search_prompt: Prompt,
     timestamp_prompt: Prompt,
     jump_prompt: Prompt,
+    new_bookmark_prompt: Prompt,
 }
 
 impl EventSource {
@@ -92,6 +94,12 @@ impl EventSource {
                 .handle_raw_event(key)
                 .map(Event::JumpByLines);
         }
+        if self.new_bookmark_prompt.is_active() {
+            return self
+                .new_bookmark_prompt
+                .handle_raw_event(key)
+                .map(Event::NewBookmark);
+        }
         if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT {
             match key.code {
                 KeyCode::Char('q') => Some(Event::Exit),
@@ -127,6 +135,10 @@ impl EventSource {
                 KeyCode::Char('J') => {
                     self.jump_prompt.start();
                     Some(Event::JumpByLines(PromptAction::Start(Some(Direction::Up))))
+                }
+                KeyCode::Char('b') => {
+                    self.new_bookmark_prompt.start();
+                    Some(Event::NewBookmark(PromptAction::Start(None)))
                 }
                 _ => None,
             }
