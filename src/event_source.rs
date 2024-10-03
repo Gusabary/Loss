@@ -2,7 +2,7 @@ use anyhow::{Ok, Result};
 use crossterm::event::{self, read, KeyCode, KeyEvent, KeyModifiers};
 use log::info;
 
-use crate::prompt::{PromptAction, PromptHistory};
+use crate::prompt::{Prompt, PromptAction};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Direction {
@@ -40,10 +40,10 @@ pub enum Event {
 
 #[derive(Debug, Default)]
 pub struct EventSource {
-    search_prompt: Option<String>,
-    search_history: PromptHistory,
-    timestamp_prompt: Option<String>,
-    timestamp_history: PromptHistory,
+    search_prompt: Prompt,
+    // search_history: PromptHistory,
+    timestamp_prompt: Prompt,
+    // timestamp_history: PromptHistory,
 }
 
 impl EventSource {
@@ -69,41 +69,29 @@ impl EventSource {
     }
 
     fn handle_key_press(&mut self, key: &KeyEvent) -> Option<Event> {
-        if self.search_prompt.is_some() {
-            if let Some(action) =
-                handle_prompt(key, &mut self.search_prompt, &mut self.search_history)
-            {
-                return Some(Event::Search(action));
-            } else {
-                return None;
-            }
+        if self.search_prompt.is_active() {
+            return self.search_prompt.handle_raw_event(key).map(Event::Search);
         }
-        if self.timestamp_prompt.is_some() {
-            if let Some(action) =
-                handle_prompt(key, &mut self.timestamp_prompt, &mut self.timestamp_history)
-            {
-                return Some(Event::JumpToTimestamp(action));
-            } else {
-                return None;
-            }
+        if self.timestamp_prompt.is_active() {
+            return self
+                .search_prompt
+                .handle_raw_event(key)
+                .map(Event::JumpToTimestamp);
         }
         if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT {
             match key.code {
                 KeyCode::Char('q') => Some(Event::Exit),
                 KeyCode::Char('w') => Some(Event::ToggleWrapLine),
                 KeyCode::Char('/') => {
-                    self.search_prompt = Some(String::default());
-                    self.search_history.reset_index();
+                    self.search_prompt.start();
                     Some(Event::Search(PromptAction::Start(Some(Direction::Down))))
                 }
                 KeyCode::Char('?') => {
-                    self.search_prompt = Some(String::default());
-                    self.search_history.reset_index();
+                    self.search_prompt.start();
                     Some(Event::Search(PromptAction::Start(Some(Direction::Up))))
                 }
                 KeyCode::Char('t') => {
-                    self.timestamp_prompt = Some(String::default());
-                    self.timestamp_history.reset_index();
+                    self.timestamp_prompt.start();
                     Some(Event::JumpToTimestamp(PromptAction::Start(None)))
                 }
                 KeyCode::Char('n') => Some(Event::Next),
@@ -128,48 +116,6 @@ impl EventSource {
             }
         } else {
             None
-        }
-    }
-}
-
-fn handle_prompt(
-    key: &KeyEvent,
-    prompt_opt: &mut Option<String>,
-    history: &mut PromptHistory,
-) -> Option<PromptAction> {
-    assert!(prompt_opt.is_some());
-    let prompt = prompt_opt.as_mut().unwrap();
-    if key.modifiers != KeyModifiers::NONE && key.modifiers != KeyModifiers::SHIFT {
-        None
-    } else {
-        match key.code {
-            KeyCode::Char(c) => {
-                prompt.push(c);
-                Some(PromptAction::Content(prompt.to_string()))
-            }
-            KeyCode::Backspace => {
-                prompt.pop();
-                Some(PromptAction::Content(prompt.to_string()))
-            }
-            KeyCode::Enter => {
-                let prompt = prompt.clone();
-                history.push(&prompt);
-                *prompt_opt = None;
-                Some(PromptAction::Enter(prompt))
-            }
-            KeyCode::Esc => {
-                *prompt_opt = None;
-                Some(PromptAction::Cancel)
-            }
-            KeyCode::Up => {
-                *prompt = history.previous_one();
-                Some(PromptAction::Content(prompt.to_string()))
-            }
-            KeyCode::Down => {
-                *prompt = history.next_one();
-                Some(PromptAction::Content(prompt.to_string()))
-            }
-            _ => None,
         }
     }
 }
