@@ -60,7 +60,7 @@ impl Manager {
     fn fill_buffer_and_render(&mut self) -> Result<()> {
         self.context.raw_lines = self
             .document
-            .query_lines(self.window.offset, self.window.height)?;
+            .query_lines(self.window.offset(), self.window.height)?;
 
         self.renderer.buffer.clear();
         for line in self.context.raw_lines.iter() {
@@ -96,7 +96,7 @@ impl Manager {
             self.bookmark_store
                 .render(&mut self.renderer, self.window.width, self.window.height);
         } else {
-            let ratio = self.document.percent_ratio_of_offset(self.window.offset);
+            let ratio = self.document.percent_ratio_of_offset(self.window.offset());
             self.status_bar.set_ratio(ratio);
             self.status_bar
                 .render(&mut self.renderer, self.window.width);
@@ -115,17 +115,20 @@ impl Manager {
             }
             Event::WindowMove(direction, step) => self.on_window_move_event(direction, step)?,
             Event::Search(action) => self.on_search_event(action)?,
-            Event::Next => self.search_next(Direction::Down, true)?,
-            Event::Previous => self.search_next(Direction::Up, true)?,
-            Event::SeekToEnd => self.window.offset = self.document.last_line_start_offset(),
-            Event::SeekToHome => self.window.offset = 0,
+            Event::SearchNext => self.search_next(Direction::Down, true)?,
+            Event::SearchPrevious => self.search_next(Direction::Up, true)?,
+            Event::SeekToEnd => self
+                .window
+                .set_offset(self.document.last_line_start_offset()),
+            Event::SeekToHome => self.window.set_offset(0),
             Event::JumpToTimestamp(action) => self.on_jump_to_timestamp_event(action)?,
             Event::JumpByLines(action) => self.on_jump_by_lines_event(action)?,
             Event::TerminalResize(width, height) => self.window.resize(width, height),
             Event::NewBookmark(action) => self.on_new_bookmark_event(action)?,
             Event::GotoBookmark(action) => self.on_bookmark_menu_event(action)?,
+            Event::UndoWindowVerticalMove => self.window.goto_previous_offset(),
+            Event::RedoWindowVerticalMove => self.window.goto_next_offset(),
         }
-        info!("[run] window.offset: {}", self.window.offset);
         Ok(false)
     }
 
@@ -134,13 +137,13 @@ impl Manager {
             Direction::Up => {
                 let distance = self
                     .document
-                    .query_distance_to_above_n_lines(self.window.offset, step)?;
+                    .query_distance_to_above_n_lines(self.window.offset(), step)?;
                 self.window.move_offset_by(distance, direction);
             }
             Direction::Down => {
                 let distance = self
                     .document
-                    .query_distance_to_below_n_lines(self.window.offset, step)?;
+                    .query_distance_to_below_n_lines(self.window.offset(), step)?;
                 self.window.move_offset_by(distance, direction);
             }
             Direction::Left => {
@@ -200,15 +203,15 @@ impl Manager {
         let mut extra_distance = 0;
         let distance = if direction == Direction::Up {
             self.document
-                .query_distance_to_prev_match(self.window.offset, content)?
+                .query_distance_to_prev_match(self.window.offset(), content)?
         } else {
             if from_next_event {
                 extra_distance = self
                     .document
-                    .query_distance_to_below_n_lines(self.window.offset, 1)?;
+                    .query_distance_to_below_n_lines(self.window.offset(), 1)?;
             }
             self.document
-                .query_distance_to_next_match(self.window.offset + extra_distance, content)?
+                .query_distance_to_next_match(self.window.offset() + extra_distance, content)?
         };
         if let Some(distance) = distance {
             self.window
@@ -238,7 +241,7 @@ impl Manager {
                 let (date, time) = parse_log_timestamp(&content);
                 if let Some(time) = time {
                     if let Some(offset) = self.document.query_offset_by_timestamp(date, time)? {
-                        self.window.offset = offset
+                        self.window.set_offset(offset)
                     } else {
                         self.status_bar
                             .set_oneoff_error_text("Cannot jump to timestamp");
@@ -306,9 +309,9 @@ impl Manager {
                         "Bookmark name should have no more than {BOOKMARK_NAME_MAX_LEN} chars"
                     ));
                 } else {
-                    let line = &self.document.query_lines(self.window.offset, 1)?[0];
+                    let line = &self.document.query_lines(self.window.offset(), 1)?[0];
                     self.bookmark_store
-                        .new_bookmark(&content, self.window.offset, line);
+                        .new_bookmark(&content, self.window.offset(), line);
                     self.status_bar
                         .set_oneoff_error_text(&format!("Bookmark saved: {content}"));
                 }
@@ -320,7 +323,7 @@ impl Manager {
     fn on_bookmark_menu_event(&mut self, action: BookmarkMenuAction) -> Result<()> {
         if action == BookmarkMenuAction::Enter {
             if let Some((bookmark_name, offset, _)) = self.bookmark_store.handle_enter_event() {
-                self.window.offset = *offset;
+                self.window.set_offset(*offset);
                 self.status_bar
                     .set_oneoff_error_text(&format!("Jumped to bookmark: {bookmark_name}"));
             }
@@ -331,10 +334,10 @@ impl Manager {
     }
 
     fn ensure_consistency(&mut self) -> Result<()> {
-        assert!(self.window.offset <= self.document.last_line_start_offset());
-        if self.window.offset < self.document.last_line_start_offset() {
+        assert!(self.window.offset() <= self.document.last_line_start_offset());
+        if self.window.offset() < self.document.last_line_start_offset() {
             self.document
-                .assert_offset_is_at_line_start(self.window.offset)?;
+                .assert_offset_is_at_line_start(self.window.offset())?;
         }
         Ok(())
     }

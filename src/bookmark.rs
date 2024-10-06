@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::{event_source::Direction, render::Renderer};
 
-pub const BOOKMARK_NAME_MAX_LEN: usize = 10;
+pub const BOOKMARK_NAME_MAX_LEN: usize = 50;
 
 #[derive(Debug, Default)]
 pub struct BookmarkStore {

@@ -41,8 +41,8 @@ pub enum Event {
     Exit,
     ToggleWrapLine,
     Search(PromptAction),
-    Next,
-    Previous,
+    SearchNext,
+    SearchPrevious,
     SeekToHome,
     SeekToEnd,
     JumpToTimestamp(PromptAction),
@@ -50,6 +50,8 @@ pub enum Event {
     TerminalResize(usize, usize),
     NewBookmark(PromptAction),
     GotoBookmark(BookmarkMenuAction),
+    UndoWindowVerticalMove,
+    RedoWindowVerticalMove,
 }
 
 #[derive(Debug, Default)]
@@ -127,8 +129,8 @@ impl EventSource {
                     self.timestamp_prompt.start();
                     Some(Event::JumpToTimestamp(PromptAction::Start(None)))
                 }
-                KeyCode::Char('n') => Some(Event::Next),
-                KeyCode::Char('N') => Some(Event::Previous),
+                KeyCode::Char('n') => Some(Event::SearchNext),
+                KeyCode::Char('N') => Some(Event::SearchPrevious),
                 KeyCode::Down => Some(Event::WindowMove(Direction::Down, 1)),
                 KeyCode::Up => Some(Event::WindowMove(Direction::Up, 1)),
                 KeyCode::Right => Some(Event::WindowMove(Direction::Right, 1)),
@@ -155,6 +157,8 @@ impl EventSource {
                     self.bookmark_menu.activate();
                     Some(Event::GotoBookmark(BookmarkMenuAction::Start))
                 }
+                KeyCode::Char(',') => Some(Event::UndoWindowVerticalMove),
+                KeyCode::Char('.') => Some(Event::RedoWindowVerticalMove),
                 _ => None,
             }
         } else if key.modifiers == KeyModifiers::CONTROL {
