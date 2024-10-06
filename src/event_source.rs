@@ -2,7 +2,10 @@ use anyhow::{Ok, Result};
 use crossterm::event::{self, read, KeyCode, KeyEvent, KeyModifiers};
 use log::info;
 
-use crate::prompt::{Prompt, PromptAction};
+use crate::{
+    bookmark::{BookMarkMenu, BookmarkMenuAction},
+    prompt::{Prompt, PromptAction},
+};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Direction {
@@ -46,6 +49,7 @@ pub enum Event {
     JumpByLines(PromptAction),
     TerminalResize(usize, usize),
     NewBookmark(PromptAction),
+    GotoBookmark(BookmarkMenuAction),
 }
 
 #[derive(Debug, Default)]
@@ -54,6 +58,7 @@ pub struct EventSource {
     timestamp_prompt: Prompt,
     jump_prompt: Prompt,
     new_bookmark_prompt: Prompt,
+    bookmark_menu: BookMarkMenu,
 }
 
 impl EventSource {
@@ -100,6 +105,12 @@ impl EventSource {
                 .handle_raw_event(key)
                 .map(Event::NewBookmark);
         }
+        if self.bookmark_menu.is_active() {
+            return self
+                .bookmark_menu
+                .handle_raw_event(key)
+                .map(Event::GotoBookmark);
+        }
         if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT {
             match key.code {
                 KeyCode::Char('q') => Some(Event::Exit),
@@ -139,6 +150,10 @@ impl EventSource {
                 KeyCode::Char('b') => {
                     self.new_bookmark_prompt.start();
                     Some(Event::NewBookmark(PromptAction::Start(None)))
+                }
+                KeyCode::Char('g') => {
+                    self.bookmark_menu.activate();
+                    Some(Event::GotoBookmark(BookmarkMenuAction::Start))
                 }
                 _ => None,
             }

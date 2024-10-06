@@ -1,7 +1,10 @@
+use crate::render::Renderer;
+
 #[derive(Debug, Default)]
 pub struct StatusBar {
     text: String,
     oneoff_error_text: Option<String>,
+    ratio: usize,
 }
 
 impl StatusBar {
@@ -17,22 +20,27 @@ impl StatusBar {
         self.oneoff_error_text = Some(text.to_string());
     }
 
-    pub fn render_text(&mut self, width: usize, ratio: usize) -> String {
+    pub fn set_ratio(&mut self, ratio: usize) {
+        self.ratio = ratio;
+    }
+
+    pub fn render(&mut self, renderer: &mut Renderer, window_width: usize) {
         if let Some(mut text) = self.oneoff_error_text.clone() {
             self.oneoff_error_text = None;
-            text.truncate(width);
-            return text;
+            text.truncate(window_width);
+            renderer.status_bar_render_text = text;
+            return;
         }
         let mut text = self.text.clone();
-        if self.text.len() + 6 < width {
-            let ratio_str = format!("{ratio}%");
+        if self.text.len() + 6 < window_width {
+            let ratio_str = format!("{}%", self.ratio);
             assert!(ratio_str.len() <= 4);
-            let space_count = width - self.text.len() - ratio_str.len();
+            let space_count = window_width - self.text.len() - ratio_str.len();
             text.extend(std::iter::repeat(' ').take(space_count));
             text.push_str(&ratio_str);
         } else {
-            text.truncate(width);
+            text.truncate(window_width);
         }
-        text
+        renderer.status_bar_render_text = text;
     }
 }

@@ -56,6 +56,14 @@ impl<R: Read + Seek> Document<R> {
         self.document_size - self.last_line.as_ref().unwrap().len()
     }
 
+    pub fn percent_ratio_of_offset(&self, offset: usize) -> usize {
+        if self.last_line_start_offset() == 0 {
+            100
+        } else {
+            offset * 100 / self.last_line_start_offset()
+        }
+    }
+
     fn load_chunk(
         &mut self,
         mut offset_begin: usize,

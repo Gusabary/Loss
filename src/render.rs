@@ -18,6 +18,7 @@ pub struct RenderOptions {
 pub struct Renderer {
     pub buffer: Vec<String>,
     pub options: RenderOptions,
+    pub popup_menu_render_text: Vec<String>,
     pub status_bar_render_text: String,
 }
 
@@ -26,6 +27,7 @@ impl Renderer {
         let render_buffer = self
             .buffer
             .iter()
+            .take(self.buffer.len() - self.popup_menu_render_text.len())
             .map(|row| self.render_line(row))
             .collect::<Vec<_>>();
 
@@ -34,8 +36,15 @@ impl Renderer {
             println!("{line}\r");
         }
 
+        for line in self.popup_menu_render_text.iter() {
+            println!("{line}\r");
+        }
+
         print!("{}", self.status_bar_render_text);
         stdout().flush().unwrap();
+
+        self.popup_menu_render_text.clear();
+
         Ok(())
     }
 

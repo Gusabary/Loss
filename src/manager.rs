@@ -1,7 +1,7 @@
 use std::fs::File;
 
 use crate::{
-    bookmark::BookmarkStore,
+    bookmark::{BookmarkMenuAction, BookmarkStore, BOOKMARK_NAME_MAX_LEN},
     document::Document,
     event_source::{Direction, Event, EventSource},
     log_timestamp::parse_log_timestamp,
@@ -92,13 +92,15 @@ impl Manager {
             .buffer
             .resize(self.window.height, "~".to_string());
 
-        let ratio = if self.document.last_line_start_offset() == 0 {
-            100
+        if self.bookmark_store.is_active() {
+            self.bookmark_store
+                .render(&mut self.renderer, self.window.width, self.window.height);
         } else {
-            self.window.offset * 100 / self.document.last_line_start_offset()
-        };
-        self.renderer.status_bar_render_text =
-            self.status_bar.render_text(self.window.width, ratio);
+            let ratio = self.document.percent_ratio_of_offset(self.window.offset);
+            self.status_bar.set_ratio(ratio);
+            self.status_bar
+                .render(&mut self.renderer, self.window.width);
+        }
         self.renderer.render()?;
         Ok(())
     }
@@ -121,6 +123,7 @@ impl Manager {
             Event::JumpByLines(action) => self.on_jump_by_lines_event(action)?,
             Event::TerminalResize(width, height) => self.window.resize(width, height),
             Event::NewBookmark(action) => self.on_new_bookmark_event(action)?,
+            Event::GotoBookmark(action) => self.on_bookmark_menu_event(action)?,
         }
         info!("[run] window.offset: {}", self.window.offset);
         Ok(false)
@@ -298,18 +301,31 @@ impl Manager {
             }
             PromptAction::Enter(content) => {
                 self.status_bar.clear_text();
-                const BOOKMARK_NAME_MAX_LEN: usize = 10;
                 if content.len() > BOOKMARK_NAME_MAX_LEN {
                     self.status_bar.set_oneoff_error_text(&format!(
                         "Bookmark name should have no more than {BOOKMARK_NAME_MAX_LEN} chars"
                     ));
                 } else {
+                    let line = &self.document.query_lines(self.window.offset, 1)?[0];
                     self.bookmark_store
-                        .new_bookmark(&content, self.window.offset);
+                        .new_bookmark(&content, self.window.offset, line);
                     self.status_bar
                         .set_oneoff_error_text(&format!("Bookmark saved: {content}"));
                 }
             }
+        }
+        Ok(())
+    }
+
+    fn on_bookmark_menu_event(&mut self, action: BookmarkMenuAction) -> Result<()> {
+        if action == BookmarkMenuAction::Enter {
+            if let Some((bookmark_name, offset, _)) = self.bookmark_store.handle_enter_event() {
+                self.window.offset = *offset;
+                self.status_bar
+                    .set_oneoff_error_text(&format!("Jumped to bookmark: {bookmark_name}"));
+            }
+        } else {
+            self.bookmark_store.handle_other_event(action);
         }
         Ok(())
     }
