@@ -67,6 +67,9 @@ impl Manager {
 
         self.renderer.buffer.clear();
         for line in self.context.raw_lines.iter() {
+            if !self.finder.can_pass_advance_action(line) {
+                continue;
+            }
             if self.context.wrap_lines {
                 if line.is_empty() {
                     self.renderer.buffer.push(String::default());

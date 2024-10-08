@@ -225,17 +225,21 @@ impl Finder {
 
     pub fn toggle_fold_action(&mut self) {
         for index in self.active_slots.iter() {
-            self.slots[array_index_from_slot_index(*index)]
-                .advanced_action
-                .toggle_fold();
+            let slot = &mut self.slots[array_index_from_slot_index(*index)];
+            slot.advanced_action.toggle_fold();
+            if slot.advanced_action == AdvancedAction::Fold {
+                slot.highlight_flag = HighlightFlag::Off;
+            }
         }
     }
 
     pub fn toggle_exclusive_action(&mut self) {
         for index in self.active_slots.iter() {
-            self.slots[array_index_from_slot_index(*index)]
-                .advanced_action
-                .toggle_exclusive();
+            let slot = &mut self.slots[array_index_from_slot_index(*index)];
+            slot.advanced_action.toggle_exclusive();
+            if slot.advanced_action == AdvancedAction::Exclusive {
+                slot.highlight_flag = HighlightFlag::Off;
+            }
         }
     }
 
@@ -251,6 +255,41 @@ impl Finder {
         for index in self.active_slots.iter() {
             self.slots[array_index_from_slot_index(*index)].reset();
         }
+    }
+
+    pub fn can_pass_advance_action(&self, line: &str) -> bool {
+        let fold_patterns = self
+            .slots
+            .iter()
+            .filter_map(|s| {
+                if s.advanced_action == AdvancedAction::Fold {
+                    s.pattern.clone()
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if fold_patterns.iter().any(|p| line.contains(p)) {
+            return false;
+        }
+
+        let exclusive_patterns = self
+            .slots
+            .iter()
+            .filter_map(|s| {
+                if s.advanced_action == AdvancedAction::Exclusive {
+                    s.pattern.clone()
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if !exclusive_patterns.is_empty() && exclusive_patterns.iter().all(|ep| !line.contains(ep))
+        {
+            return false;
+        }
+
+        true
     }
 
     pub fn render_body_area(&self, renderer: &mut Renderer) {
@@ -275,6 +314,8 @@ impl Finder {
                 continue;
             }
             // todo: handle regex pattern type
+            // todo: find all appearance instead of only the first one
+            // todo: handle wrapped match
             if let Some(pattern) = &slot.pattern {
                 if let Some(start) = line.find(pattern) {
                     let end = start + pattern.len();
