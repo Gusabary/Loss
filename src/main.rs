@@ -7,6 +7,7 @@ mod bookmark;
 mod chunk;
 mod document;
 mod event_source;
+mod finder;
 mod log_timestamp;
 mod manager;
 mod prompt;

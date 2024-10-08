@@ -278,7 +278,7 @@ impl<R: Read + Seek> Document<R> {
     pub fn query_distance_to_prev_match(
         &mut self,
         mut offset: usize,
-        search_pattern: &str,
+        search_patterns: Vec<&str>,
     ) -> Result<Option<usize>> {
         // offset must be at the line start
         let mut distance = 0;
@@ -298,7 +298,7 @@ impl<R: Read + Seek> Document<R> {
             let line_count_skipped = chunk.rows.len() - above_lines_in_chunk;
             for line in chunk.rows.iter().rev().skip(line_count_skipped) {
                 distance += line.len() + 1;
-                if line.contains(search_pattern) {
+                if search_patterns.iter().any(|p| line.contains(p)) {
                     return Ok(Some(distance));
                 }
             }
@@ -311,21 +311,24 @@ impl<R: Read + Seek> Document<R> {
     pub fn query_distance_to_next_match(
         &mut self,
         mut offset: usize,
-        search_pattern: &str,
+        search_patterns: Vec<&str>,
     ) -> Result<Option<usize>> {
         let mut distance = 0;
         while offset < self.last_line_start_offset() {
             let chunk = self.get_or_load_chunk_by_offset(offset)?;
             let line_index = chunk.query_line_index_exactly(offset);
             for line in chunk.rows.iter().skip(line_index) {
-                if line.contains(search_pattern) {
+                if search_patterns.iter().any(|p| line.contains(p)) {
                     return Ok(Some(distance));
                 }
                 distance += line.len() + 1;
             }
             offset = chunk.offset_end;
         }
-        if self.last_line.as_ref().unwrap().contains(search_pattern) {
+        if search_patterns
+            .iter()
+            .any(|p| self.last_line.as_ref().unwrap().contains(p))
+        {
             Ok(Some(distance))
         } else {
             Ok(None)
@@ -445,21 +448,38 @@ mod tests {
         let cursor =
             Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\n\n\n1234\nremain");
         let mut doc = Document::new(cursor.clone()).unwrap();
-        assert_eq!(doc.query_distance_to_prev_match(0, "123").unwrap(), None);
-        assert_eq!(doc.query_distance_to_prev_match(5, "123").unwrap(), Some(5));
         assert_eq!(
-            doc.query_distance_to_prev_match(10, "123").unwrap(),
+            doc.query_distance_to_prev_match(0, vec!["123"]).unwrap(),
+            None
+        );
+        assert_eq!(
+            doc.query_distance_to_prev_match(5, vec!["123", "abcd"])
+                .unwrap(),
+            Some(5)
+        );
+        assert_eq!(
+            doc.query_distance_to_prev_match(10, vec!["123"]).unwrap(),
             Some(10)
         );
-        assert_eq!(doc.query_distance_to_prev_match(0, "bcd").unwrap(), None);
-        assert_eq!(doc.query_distance_to_prev_match(35, "34").unwrap(), Some(5));
-        assert_eq!(doc.query_distance_to_prev_match(40, "bc").unwrap(), Some(5));
         assert_eq!(
-            doc.query_distance_to_prev_match(47, "bc").unwrap(),
+            doc.query_distance_to_prev_match(0, vec!["bcd"]).unwrap(),
+            None
+        );
+        assert_eq!(
+            doc.query_distance_to_prev_match(35, vec!["34"]).unwrap(),
+            Some(5)
+        );
+        assert_eq!(
+            doc.query_distance_to_prev_match(40, vec!["bc"]).unwrap(),
+            Some(5)
+        );
+        assert_eq!(
+            doc.query_distance_to_prev_match(47, vec!["bc"]).unwrap(),
             Some(12)
         );
         assert_eq!(
-            doc.query_distance_to_prev_match(47, "remain").unwrap(),
+            doc.query_distance_to_prev_match(47, vec!["remain"])
+                .unwrap(),
             None
         );
     }
@@ -469,21 +489,37 @@ mod tests {
         let cursor =
             Cursor::new("1234\nabcd\n1234\nabcd\n1234\nabcd\n1234\nabcd\n\n\n1234\nremain");
         let mut doc = Document::new(cursor.clone()).unwrap();
-        assert_eq!(doc.query_distance_to_next_match(0, "123").unwrap(), Some(0));
-        assert_eq!(doc.query_distance_to_next_match(5, "123").unwrap(), Some(5));
         assert_eq!(
-            doc.query_distance_to_next_match(10, "123").unwrap(),
+            doc.query_distance_to_next_match(0, vec!["123"]).unwrap(),
             Some(0)
         );
-        assert_eq!(doc.query_distance_to_next_match(0, "bcd").unwrap(), Some(5));
-        assert_eq!(doc.query_distance_to_next_match(35, "34").unwrap(), Some(7));
-        assert_eq!(doc.query_distance_to_next_match(35, "abcde").unwrap(), None);
         assert_eq!(
-            doc.query_distance_to_next_match(35, "main").unwrap(),
+            doc.query_distance_to_next_match(5, vec!["123"]).unwrap(),
+            Some(5)
+        );
+        assert_eq!(
+            doc.query_distance_to_next_match(10, vec!["123"]).unwrap(),
+            Some(0)
+        );
+        assert_eq!(
+            doc.query_distance_to_next_match(0, vec!["bcd"]).unwrap(),
+            Some(5)
+        );
+        assert_eq!(
+            doc.query_distance_to_next_match(35, vec!["34"]).unwrap(),
+            Some(7)
+        );
+        assert_eq!(
+            doc.query_distance_to_next_match(35, vec!["abcde"]).unwrap(),
+            None
+        );
+        assert_eq!(
+            doc.query_distance_to_next_match(35, vec!["main", "rem", "a123"])
+                .unwrap(),
             Some(12)
         );
         assert_eq!(
-            doc.query_distance_to_next_match(47, "main").unwrap(),
+            doc.query_distance_to_next_match(47, vec!["main"]).unwrap(),
             Some(0)
         );
     }

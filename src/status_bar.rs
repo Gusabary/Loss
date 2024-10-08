@@ -24,23 +24,26 @@ impl StatusBar {
         self.ratio = ratio;
     }
 
-    pub fn render(&mut self, renderer: &mut Renderer, window_width: usize) {
+    pub fn render(&mut self, renderer: &mut Renderer, window_width: usize) -> Option<usize> {
         if let Some(mut text) = self.oneoff_error_text.clone() {
             self.oneoff_error_text = None;
             text.truncate(window_width);
             renderer.status_bar_render_text = text;
-            return;
+            return None;
         }
         let mut text = self.text.clone();
+        let space_count;
         if self.text.len() + 6 < window_width {
             let ratio_str = format!("{}%", self.ratio);
             assert!(ratio_str.len() <= 4);
-            let space_count = window_width - self.text.len() - ratio_str.len();
-            text.extend(std::iter::repeat(' ').take(space_count));
+            space_count = Some(window_width - self.text.len() - ratio_str.len());
+            text.extend(std::iter::repeat(' ').take(space_count.unwrap()));
             text.push_str(&ratio_str);
         } else {
+            space_count = None;
             text.truncate(window_width);
         }
         renderer.status_bar_render_text = text;
+        space_count
     }
 }

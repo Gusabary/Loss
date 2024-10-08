@@ -72,6 +72,7 @@ impl Prompt {
                     Some(PromptAction::Content(prompt_text.to_string()))
                 }
                 KeyCode::Enter => {
+                    // todo: check prompt_text is not empty
                     let prompt_text = prompt_text.clone();
                     self.push_history(&prompt_text);
                     self.finish();

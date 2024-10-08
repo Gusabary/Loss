@@ -4,6 +4,7 @@ use log::info;
 
 use crate::{
     bookmark::{BookMarkMenu, BookmarkMenuAction},
+    finder::{FinderAction, FinderEventParser},
     prompt::{Prompt, PromptAction},
 };
 
@@ -52,6 +53,7 @@ pub enum Event {
     GotoBookmark(BookmarkMenuAction),
     UndoWindowVerticalMove,
     RedoWindowVerticalMove,
+    FinderOperation(FinderAction),
 }
 
 #[derive(Debug, Default)]
@@ -61,6 +63,7 @@ pub struct EventSource {
     jump_prompt: Prompt,
     new_bookmark_prompt: Prompt,
     bookmark_menu: BookMarkMenu,
+    finder_event_parser: FinderEventParser,
 }
 
 impl EventSource {
@@ -113,6 +116,10 @@ impl EventSource {
                 .handle_raw_event(key)
                 .map(Event::GotoBookmark);
         }
+        if let Some(action) = self.finder_event_parser.try_parse_raw_event(key) {
+            return Some(Event::FinderOperation(action));
+        }
+
         if key.modifiers == KeyModifiers::NONE || key.modifiers == KeyModifiers::SHIFT {
             match key.code {
                 KeyCode::Char('q') => Some(Event::Exit),

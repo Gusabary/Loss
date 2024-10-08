@@ -4,6 +4,7 @@ use crate::{
     bookmark::{BookmarkMenuAction, BookmarkStore, BOOKMARK_NAME_MAX_LEN},
     document::Document,
     event_source::{Direction, Event, EventSource},
+    finder::{Finder, FinderAction},
     log_timestamp::parse_log_timestamp,
     prompt::PromptAction,
     render::{clear_screen_and_reset_cursor, Renderer},
@@ -17,8 +18,8 @@ use log::info;
 struct Context {
     raw_lines: Vec<String>,
     searching_direction: Option<Direction>,
-    searching_content: Option<String>,
     jumping_direction: Option<Direction>,
+    wrap_lines: bool,
 }
 
 pub struct Manager {
@@ -28,6 +29,7 @@ pub struct Manager {
     event_source: EventSource,
     renderer: Renderer,
     bookmark_store: BookmarkStore,
+    finder: Finder,
     context: Context,
 }
 
@@ -41,6 +43,7 @@ impl Manager {
             event_source: EventSource::default(),
             renderer: Renderer::default(),
             bookmark_store: BookmarkStore::default(),
+            finder: Finder::new(),
             context: Context::default(),
         })
     }
@@ -64,7 +67,7 @@ impl Manager {
 
         self.renderer.buffer.clear();
         for line in self.context.raw_lines.iter() {
-            if self.renderer.options.wrap_lines {
+            if self.context.wrap_lines {
                 if line.is_empty() {
                     self.renderer.buffer.push(String::default());
                     continue;
@@ -95,12 +98,21 @@ impl Manager {
         if self.bookmark_store.is_active() {
             self.bookmark_store
                 .render(&mut self.renderer, self.window.width, self.window.height);
+        } else if self.finder.is_menu_active() {
+            self.finder
+                .render_menu(&mut self.renderer, self.window.width, self.window.height);
         } else {
             let ratio = self.document.percent_ratio_of_offset(self.window.offset());
             self.status_bar.set_ratio(ratio);
-            self.status_bar
-                .render(&mut self.renderer, self.window.width);
+            if let Some(space_count) = self
+                .status_bar
+                .render(&mut self.renderer, self.window.width)
+            {
+                self.finder
+                    .render_status_bar(&mut self.renderer, space_count);
+            }
         }
+        self.finder.render_body_area(&mut self.renderer);
         self.renderer.render()?;
         Ok(())
     }
@@ -110,9 +122,7 @@ impl Manager {
         info!("[run] new event: {:?}", event);
         match event {
             Event::Exit => return Ok(true),
-            Event::ToggleWrapLine => {
-                self.renderer.options.wrap_lines = !self.renderer.options.wrap_lines
-            }
+            Event::ToggleWrapLine => self.context.wrap_lines = !self.context.wrap_lines,
             Event::WindowMove(direction, step) => self.on_window_move_event(direction, step)?,
             Event::Search(action) => self.on_search_event(action)?,
             Event::SearchNext => self.search_next(Direction::Down, true)?,
@@ -128,6 +138,7 @@ impl Manager {
             Event::GotoBookmark(action) => self.on_bookmark_menu_event(action)?,
             Event::UndoWindowVerticalMove => self.window.goto_previous_offset(),
             Event::RedoWindowVerticalMove => self.window.goto_next_offset(),
+            Event::FinderOperation(action) => self.on_finder_event(action)?,
         }
         Ok(false)
     }
@@ -147,13 +158,13 @@ impl Manager {
                 self.window.move_offset_by(distance, direction);
             }
             Direction::Left => {
-                if !self.renderer.options.wrap_lines {
+                if !self.context.wrap_lines {
                     self.window.horizontal_shift =
                         self.window.horizontal_shift.saturating_sub(step);
                 }
             }
             Direction::Right => {
-                if !self.renderer.options.wrap_lines {
+                if !self.context.wrap_lines {
                     let max_line_len = self
                         .context
                         .raw_lines
@@ -185,10 +196,17 @@ impl Manager {
                 self.status_bar.clear_text();
             }
             PromptAction::Enter(content) => {
-                self.status_bar.clear_text();
-                self.context.searching_content = Some(content.clone());
-                self.search_next(self.context.searching_direction.unwrap(), false)?;
-                self.context.searching_direction = None;
+                if self.finder.active_slots().len() > 1 {
+                    // todo: advance this to /
+                    self.status_bar.set_oneoff_error_text(
+                        "Cannot search with more than one active Finder slot",
+                    );
+                } else {
+                    self.status_bar.clear_text();
+                    self.finder.update_search_pattern(&content);
+                    self.search_next(self.context.searching_direction.unwrap(), false)?;
+                    self.context.searching_direction = None;
+                }
             }
         }
         Ok(())
@@ -196,27 +214,28 @@ impl Manager {
 
     fn search_next(&mut self, direction: Direction, from_next_event: bool) -> Result<()> {
         assert!(direction.is_vertical());
-        if from_next_event && self.context.searching_content.is_none() {
+        let active_patterns = self.finder.active_search_patterns();
+        if from_next_event && active_patterns.is_empty() {
             return Ok(());
         }
-        let content = self.context.searching_content.as_ref().unwrap();
         let mut extra_distance = 0;
         let distance = if direction == Direction::Up {
             self.document
-                .query_distance_to_prev_match(self.window.offset(), content)?
+                .query_distance_to_prev_match(self.window.offset(), active_patterns)?
         } else {
             if from_next_event {
                 extra_distance = self
                     .document
                     .query_distance_to_below_n_lines(self.window.offset(), 1)?;
             }
-            self.document
-                .query_distance_to_next_match(self.window.offset() + extra_distance, content)?
+            self.document.query_distance_to_next_match(
+                self.window.offset() + extra_distance,
+                active_patterns,
+            )?
         };
         if let Some(distance) = distance {
             self.window
                 .move_offset_by(distance + extra_distance, direction);
-            self.renderer.options.highlight_text = Some(content.clone());
         } else {
             self.status_bar.set_oneoff_error_text("Not found");
         }
@@ -329,6 +348,18 @@ impl Manager {
             }
         } else {
             self.bookmark_store.handle_other_event(action);
+        }
+        Ok(())
+    }
+
+    fn on_finder_event(&mut self, action: FinderAction) -> Result<()> {
+        if action == FinderAction::AddActiveSlotStart {
+            self.status_bar.set_text("Adding Finder active slot ...");
+        } else if action == FinderAction::RemoveActiveSlotStart {
+            self.status_bar.set_text("Removing Finder active slot ...");
+        } else {
+            self.status_bar.clear_text();
+            self.finder.handle_event(action);
         }
         Ok(())
     }

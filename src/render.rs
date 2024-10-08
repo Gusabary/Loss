@@ -1,4 +1,7 @@
-use std::io::{stdout, Write};
+use std::{
+    io::{stdout, Write},
+    ops::Range,
+};
 
 use anyhow::{Ok, Result};
 use crossterm::{
@@ -9,30 +12,16 @@ use crossterm::{
 };
 
 #[derive(Debug, Default)]
-pub struct RenderOptions {
-    pub wrap_lines: bool,
-    pub highlight_text: Option<String>,
-}
-
-#[derive(Debug, Default)]
 pub struct Renderer {
     pub buffer: Vec<String>,
-    pub options: RenderOptions,
     pub popup_menu_render_text: Vec<String>,
     pub status_bar_render_text: String,
 }
 
 impl Renderer {
     pub fn render(&mut self) -> Result<()> {
-        let render_buffer = self
-            .buffer
-            .iter()
-            .take(self.buffer.len() - self.popup_menu_render_text.len())
-            .map(|row| self.render_line(row))
-            .collect::<Vec<_>>();
-
         clear_screen_and_reset_cursor()?;
-        for line in render_buffer {
+        for line in self.buffer.iter() {
             println!("{line}\r");
         }
 
@@ -47,17 +36,6 @@ impl Renderer {
 
         Ok(())
     }
-
-    fn render_line(&self, line: &str) -> String {
-        if let Some(text) = &self.options.highlight_text {
-            if let Some(index) = line.find(text) {
-                let end = index + text.len();
-                let styled = line[index..end].with(Color::Black).on(Color::Grey);
-                return format!("{}{}{}\r", &line[..index], styled, &line[end..]);
-            }
-        }
-        line.to_string()
-    }
 }
 
 pub fn clear_screen_and_reset_cursor() -> Result<()> {
@@ -65,4 +43,31 @@ pub fn clear_screen_and_reset_cursor() -> Result<()> {
         .execute(Clear(ClearType::All))?
         .execute(MoveTo(0, 0))?;
     Ok(())
+}
+
+pub enum RenderScheme {
+    Dim,
+    ForegroundColor(Color),
+    BackgroundColor(Color),
+}
+
+pub fn render_line(line: &str, mut range_scheme: Vec<(Range<usize>, Vec<RenderScheme>)>) -> String {
+    range_scheme.sort_by(|a, b| a.0.start.cmp(&b.0.start));
+    for window in range_scheme.windows(2) {
+        assert!(window[0].0.end <= window[1].0.start);
+    }
+    let mut rendered_line = line.to_string();
+    for (range, schemes) in range_scheme.into_iter().rev() {
+        let mut rendered_part = line[range.clone()].to_string();
+        for scheme in schemes {
+            rendered_part = match scheme {
+                RenderScheme::Dim => rendered_part.dim(),
+                RenderScheme::ForegroundColor(color) => rendered_part.with(color),
+                RenderScheme::BackgroundColor(color) => rendered_part.on(color),
+            }
+            .to_string();
+        }
+        rendered_line.replace_range(range, &rendered_part);
+    }
+    rendered_line
 }
