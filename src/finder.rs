@@ -227,9 +227,6 @@ impl Finder {
         for index in self.active_slots.iter() {
             let slot = &mut self.slots[array_index_from_slot_index(*index)];
             slot.advanced_action.toggle_fold();
-            if slot.advanced_action == AdvancedAction::Fold {
-                slot.highlight_flag = HighlightFlag::Off;
-            }
         }
     }
 
@@ -237,9 +234,6 @@ impl Finder {
         for index in self.active_slots.iter() {
             let slot = &mut self.slots[array_index_from_slot_index(*index)];
             slot.advanced_action.toggle_exclusive();
-            if slot.advanced_action == AdvancedAction::Exclusive {
-                slot.highlight_flag = HighlightFlag::Off;
-            }
         }
     }
 
