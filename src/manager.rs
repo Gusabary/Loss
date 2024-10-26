@@ -17,11 +17,12 @@ use log::info;
 
 #[derive(Debug, Default)]
 struct Context {
-    raw_lines: Vec<String>,
+    raw_lines_buffer: Vec<String>,
     searching_direction: Option<Direction>,
     jumping_direction: Option<Direction>,
     wrap_lines: bool,
     need_rerender: bool,
+    load_lines_multiple: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -60,6 +61,7 @@ impl Manager {
 
     pub fn run(&mut self) -> Result<()> {
         self.context.need_rerender = true;
+        self.context.load_lines_multiple = 1;
         loop {
             self.fill_canvas_and_render()?;
             let should_exit = self.listen_and_dispatch_event()?;
@@ -76,12 +78,9 @@ impl Manager {
             self.context.need_rerender = true;
             return Ok(());
         }
-        self.context.raw_lines = self
-            .document
-            .query_lines(self.window.offset(), self.window.height)?;
-
+        self.load_raw_lines_buffer()?;
         self.canvas.clear();
-        for line in self.context.raw_lines.iter() {
+        for line in self.context.raw_lines_buffer.iter() {
             if !self.finder.can_pass_advance_action(line) {
                 continue;
             }
@@ -118,6 +117,17 @@ impl Manager {
             }
         }
         self.canvas.render()?;
+        Ok(())
+    }
+
+    fn load_raw_lines_buffer(&mut self) -> Result<()> {
+        let offset = self.window.offset();
+        let line_count_to_query = self.window.height * self.context.load_lines_multiple;
+        let lines = self.document.query_lines(offset, line_count_to_query)?;
+        let filtered_lines = lines
+            .into_iter()
+            .filter(|line| self.finder.can_pass_advance_action(line));
+        self.context.raw_lines_buffer.extend(filtered_lines);
         Ok(())
     }
 
@@ -179,7 +189,7 @@ impl Manager {
                 if !self.context.wrap_lines {
                     let max_line_len = self
                         .context
-                        .raw_lines
+                        .raw_lines_buffer
                         .iter()
                         .map(|line| line.len())
                         .max()
