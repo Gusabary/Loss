@@ -304,14 +304,16 @@ impl Finder {
                 continue;
             }
             // todo: handle regex pattern type
-            // todo: find all appearance instead of only the first one
             if let Some(pattern) = &slot.pattern {
-                if let Some(start) = line.find(pattern) {
+                let mut from_pos = 0;
+                while let Some(start) = line[from_pos..].find(pattern) {
+                    let start = start + from_pos;
                     let end = start + pattern.len();
                     line_with_scheme.add_scheme_if_not_overlap(
                         start..end,
                         slot.highlight_option.render_scheme(),
                     );
+                    from_pos = end;
                 }
             }
         }
