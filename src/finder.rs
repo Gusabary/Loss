@@ -1,9 +1,10 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, ops::Range};
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::{Color, Stylize},
 };
+use regex::Regex;
 
 use crate::{
     canvas::Canvas,
@@ -143,6 +144,23 @@ impl FinderSlot {
         self.pattern_type = PatternType::Raw;
         self.pattern = None;
     }
+
+    fn find_range_of_match(&self, line: &str) -> Option<Range<usize>> {
+        let pattern = self.pattern.as_ref().unwrap();
+        match self.pattern_type {
+            PatternType::Raw => {
+                if let Some(start) = line.find(pattern) {
+                    return Some(start..start + pattern.len());
+                }
+            }
+            PatternType::Regex => {
+                if let Some(m) = Regex::new(pattern).unwrap().find(line) {
+                    return Some(m.start()..m.end());
+                }
+            }
+        }
+        None
+    }
 }
 
 const FINDER_SLOT_COUNT: usize = 10;
@@ -173,15 +191,15 @@ impl Finder {
         self.slots[index].pattern = Some(pattern.to_string());
     }
 
-    pub fn active_search_patterns(&self) -> Vec<&str> {
-        let mut active_patterns = vec![];
+    pub fn can_satisfy_active_search_patterns(&self, line: &str) -> bool {
         for slot_index in self.active_slots.iter() {
             let index = array_index_from_slot_index(*slot_index);
-            if let Some(pattern) = &self.slots[index].pattern {
-                active_patterns.push(pattern.as_str());
+            let slot = &self.slots[index];
+            if slot.pattern.is_some() && slot.find_range_of_match(line).is_some() {
+                return true;
             }
         }
-        active_patterns
+        false
     }
 
     pub fn handle_event(&mut self, action: FinderAction) {
@@ -300,21 +318,16 @@ impl Finder {
             .iter()
             .partition(|slot| self.active_slots.contains(&slot.slot_index));
         for slot in active.iter().chain(inactive.iter()) {
-            if slot.highlight_flag == HighlightFlag::Off {
+            if slot.highlight_flag == HighlightFlag::Off || slot.pattern.is_none() {
                 continue;
             }
-            // todo: handle regex pattern type
-            if let Some(pattern) = &slot.pattern {
-                let mut from_pos = 0;
-                while let Some(start) = line[from_pos..].find(pattern) {
-                    let start = start + from_pos;
-                    let end = start + pattern.len();
-                    line_with_scheme.add_scheme_if_not_overlap(
-                        start..end,
-                        slot.highlight_option.render_scheme(),
-                    );
-                    from_pos = end;
-                }
+            let mut from_pos = 0;
+            while let Some(match_range) = slot.find_range_of_match(&line[from_pos..]) {
+                let start = match_range.start + from_pos;
+                let end = match_range.end + from_pos;
+                line_with_scheme
+                    .add_scheme_if_not_overlap(start..end, slot.highlight_option.render_scheme());
+                from_pos = end;
             }
         }
         line_with_scheme

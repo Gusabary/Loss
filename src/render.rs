@@ -59,7 +59,9 @@ impl LineWithRenderScheme {
             let new_start = std::cmp::max(range.start, width_range.start);
             let new_end = std::cmp::min(range.end, width_range.end);
             if new_start < new_end {
-                sub_schemes.push((new_start..new_end, *scheme));
+                let s = new_start - width_range.start;
+                let e = new_end - width_range.start;
+                sub_schemes.push((s..e, *scheme));
             }
         }
         LineWithRenderScheme {

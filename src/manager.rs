@@ -214,14 +214,11 @@ impl Manager {
 
     fn search_next(&mut self, direction: Direction, from_next_event: bool) -> Result<()> {
         assert!(direction.is_vertical());
-        let active_patterns = self.finder.active_search_patterns();
-        if from_next_event && active_patterns.is_empty() {
-            return Ok(());
-        }
+        let search_predict = |line: &str| self.finder.can_satisfy_active_search_patterns(line);
         let mut extra_distance = 0;
         let distance = if direction == Direction::Up {
             self.document
-                .query_distance_to_prev_match(self.window.offset(), active_patterns)?
+                .query_distance_to_prev_match(self.window.offset(), search_predict)?
         } else {
             if from_next_event {
                 extra_distance = self
@@ -230,7 +227,7 @@ impl Manager {
             }
             self.document.query_distance_to_next_match(
                 self.window.offset() + extra_distance,
-                active_patterns,
+                search_predict,
             )?
         };
         if let Some(distance) = distance {
