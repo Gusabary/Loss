@@ -4,7 +4,7 @@ use crate::{
     bookmark::{BookmarkMenuAction, BookmarkStore, BOOKMARK_NAME_MAX_LEN},
     canvas::{clear_screen_and_reset_cursor, Canvas},
     document::Document,
-    event_source::{Direction, Event, EventSource, InterruptState},
+    event_source::{Direction, Event, EventSource},
     finder::{Finder, FinderAction},
     log_timestamp::parse_log_timestamp,
     prompt::PromptAction,
@@ -21,7 +21,13 @@ struct Context {
     searching_direction: Option<Direction>,
     jumping_direction: Option<Direction>,
     wrap_lines: bool,
-    interrupt_state: InterruptState,
+    need_rerender: bool,
+}
+
+#[derive(Debug, PartialEq)]
+enum Mode {
+    Normal,
+    Follow,
 }
 
 pub struct Manager {
@@ -29,11 +35,11 @@ pub struct Manager {
     window: Window,
     status_bar: StatusBar,
     event_source: EventSource,
-    // renderer: Renderer,
     bookmark_store: BookmarkStore,
     finder: Finder,
     context: Context,
     canvas: Canvas,
+    mode: Mode,
 }
 
 impl Manager {
@@ -44,15 +50,16 @@ impl Manager {
             window: Window::new()?,
             status_bar: StatusBar::default(),
             event_source: EventSource::default(),
-            // renderer: Renderer::default(),
             bookmark_store: BookmarkStore::default(),
             finder: Finder::new(),
             context: Context::default(),
             canvas: Canvas::default(),
+            mode: Mode::Normal,
         })
     }
 
     pub fn run(&mut self) -> Result<()> {
+        self.context.need_rerender = true;
         loop {
             self.fill_canvas_and_render()?;
             let should_exit = self.listen_and_dispatch_event()?;
@@ -65,6 +72,10 @@ impl Manager {
     }
 
     fn fill_canvas_and_render(&mut self) -> Result<()> {
+        if !self.context.need_rerender {
+            self.context.need_rerender = true;
+            return Ok(());
+        }
         self.context.raw_lines = self
             .document
             .query_lines(self.window.offset(), self.window.height)?;
@@ -111,10 +122,12 @@ impl Manager {
     }
 
     fn listen_and_dispatch_event(&mut self) -> Result<bool> {
-        if self.context.interrupt_state == InterruptState::Interruptable {
-            let has_interrupt = self.event_source.check_for_interrupt()?;
-            if has_interrupt {
-                self.context.interrupt_state = InterruptState::Interrupted;
+        if self.mode != Mode::Normal {
+            if self.event_source.check_for_interrupt()? {
+                self.mode = Mode::Normal;
+                self.status_bar.clear_text();
+            } else if self.mode == Mode::Follow {
+                self.seek_to_end()?;
             }
             return Ok(false);
         }
@@ -137,6 +150,7 @@ impl Manager {
             Event::UndoWindowVerticalMove => self.window.goto_previous_offset(),
             Event::RedoWindowVerticalMove => self.window.goto_next_offset(),
             Event::FinderOperation(action) => self.on_finder_event(action)?,
+            Event::Follow => self.enter_follow_mode()?,
         }
         Ok(false)
     }
@@ -238,7 +252,8 @@ impl Manager {
     }
 
     fn seek_to_end(&mut self) -> Result<()> {
-        self.document.update_docsize_and_lastline()?;
+        let document_updated = self.document.update_docsize_and_lastline()?;
+        self.context.need_rerender = document_updated;
         let distance = self.document.query_distance_to_above_n_lines(
             self.document.last_line_start_offset(),
             self.window.height.saturating_sub(1),
@@ -370,6 +385,14 @@ impl Manager {
             self.status_bar.clear_text();
             self.finder.handle_event(action);
         }
+        Ok(())
+    }
+
+    fn enter_follow_mode(&mut self) -> Result<()> {
+        assert_eq!(self.mode, Mode::Normal);
+        self.mode = Mode::Follow;
+        self.status_bar
+            .set_text("Waiting for data... (interrupt to abort)");
         Ok(())
     }
 

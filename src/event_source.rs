@@ -38,14 +38,6 @@ impl Direction {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy, Default)]
-pub enum InterruptState {
-    #[default]
-    Uninterruptable,
-    Interruptable,
-    Interrupted,
-}
-
 #[derive(Debug, PartialEq)]
 pub enum Event {
     WindowMove(Direction, usize),
@@ -64,6 +56,7 @@ pub enum Event {
     UndoWindowVerticalMove,
     RedoWindowVerticalMove,
     FinderOperation(FinderAction),
+    Follow,
 }
 
 #[derive(Debug, Default)]
@@ -189,6 +182,7 @@ impl EventSource {
                 }
                 KeyCode::Char(',') => Some(Event::UndoWindowVerticalMove),
                 KeyCode::Char('.') => Some(Event::RedoWindowVerticalMove),
+                KeyCode::Char('F') => Some(Event::Follow),
                 _ => None,
             }
         } else if key.modifiers == KeyModifiers::CONTROL {

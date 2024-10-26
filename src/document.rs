@@ -16,7 +16,7 @@ pub struct Document<R: Read + Seek> {
     chunks: Vec<Chunk>,
     log_timestamp_format: Option<String>,
     log_default_date: Option<NaiveDate>,
-    last_line: Option<String>,
+    last_line: String,
     document_size: usize,
     default_chunk_size: usize,
 }
@@ -30,7 +30,7 @@ impl<R: Read + Seek> Document<R> {
             chunks: vec![],
             log_timestamp_format: None,
             log_default_date: None,
-            last_line: None,
+            last_line: String::default(),
             document_size: 0,
             default_chunk_size: DEFAULT_CHUNK_SIZE,
         };
@@ -43,28 +43,27 @@ impl<R: Read + Seek> Document<R> {
         Document::<File>::new(file)
     }
 
-    pub fn update_docsize_and_lastline(&mut self) -> Result<()> {
+    // return whether document has been updated
+    pub fn update_docsize_and_lastline(&mut self) -> Result<bool> {
         let new_size = self.reader.seek(SeekFrom::End(0))? as usize;
         if new_size < self.document_size {
             // todo: exit gracefully
             panic!("document shouldn't shrink");
         }
-        self.document_size = new_size;
-        if self.document_size > 0 {
+        if new_size == self.document_size {
+            Ok(false)
+        } else {
+            self.document_size = new_size;
             self.load_chunk(
                 self.document_size.saturating_sub(DEFAULT_CHUNK_SIZE),
                 self.document_size,
             )?;
-            assert!(self.last_line.is_some());
-        } else {
-            self.last_line = Some(String::default());
+            Ok(true)
         }
-        Ok(())
     }
 
     pub fn last_line_start_offset(&self) -> usize {
-        assert!(self.last_line.is_some());
-        self.document_size - self.last_line.as_ref().unwrap().len()
+        self.document_size - self.last_line.len()
     }
 
     pub fn percent_ratio_of_offset(&self, offset: usize) -> usize {
@@ -126,7 +125,7 @@ impl<R: Read + Seek> Document<R> {
                 last_line.push('\n');
             }
             new_chunk.offset_end -= last_line.len();
-            self.last_line = Some(last_line);
+            self.last_line = last_line;
         }
         if new_chunk.rows.is_empty() {
             return Ok(None);
@@ -213,7 +212,7 @@ impl<R: Read + Seek> Document<R> {
     }
 
     fn last_line_without_line_break(&self) -> String {
-        let mut last_line = self.last_line.clone().unwrap();
+        let mut last_line = self.last_line.clone();
         if last_line.ends_with('\n') {
             last_line.pop();
         }
@@ -342,7 +341,7 @@ impl<R: Read + Seek> Document<R> {
             }
             offset = chunk.offset_end;
         }
-        if search_predict(self.last_line.as_ref().unwrap()) {
+        if search_predict(&self.last_line) {
             Ok(Some(distance))
         } else {
             Ok(None)
@@ -598,7 +597,7 @@ mod tests {
         let mut doc = Document::new(cursor.clone()).unwrap();
         doc.default_chunk_size = 10;
         assert_eq!(doc.chunks.len(), 1);
-        assert_eq!(doc.last_line.as_ref().unwrap(), "remain");
+        assert_eq!(&doc.last_line, "remain");
         doc.chunks.pop();
 
         assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["1234", "abcd"]);
@@ -615,7 +614,7 @@ mod tests {
         let mut doc = Document::new(cursor.clone()).unwrap();
         doc.default_chunk_size = 24;
         assert_eq!(doc.chunks.len(), 1);
-        assert_eq!(doc.last_line.as_ref().unwrap(), "123456789\n");
+        assert_eq!(&doc.last_line, "123456789\n");
         doc.chunks.pop();
 
         assert_eq!(doc.query_lines(0, 2).unwrap(), vec!["123456789", ""]);
@@ -693,7 +692,7 @@ mod tests {
         let cursor = Cursor::new("1234\n1234\n1234\n1234\n1234\n1234\n1234\n1234\nabc");
         let mut doc = Document::new(cursor.clone()).unwrap();
         assert_eq!(doc.chunks.len(), 1);
-        assert_eq!(doc.last_line.as_ref().unwrap(), "abc");
+        assert_eq!(&doc.last_line, "abc");
         doc.chunks.pop();
 
         doc.load_chunk(0, 11).unwrap();
@@ -744,7 +743,7 @@ mod tests {
         let cursor = Cursor::new("1234\n1234\n1234\n1234\n1234\n1234\n1234\n1234\n");
         let mut doc = Document::new(cursor.clone()).unwrap();
         assert_eq!(doc.chunks.len(), 1);
-        assert_eq!(doc.last_line.as_ref().unwrap(), "1234\n");
+        assert_eq!(&doc.last_line, "1234\n");
         doc.chunks.pop();
 
         doc.load_chunk(0, 11).unwrap();
