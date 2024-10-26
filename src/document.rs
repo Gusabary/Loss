@@ -1,5 +1,6 @@
 use anyhow::{Ok, Result};
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use core::panic;
 use log::info;
 use std::{
     fs::File,
@@ -23,32 +24,42 @@ pub struct Document<R: Read + Seek> {
 const DEFAULT_CHUNK_SIZE: usize = 65536;
 
 impl<R: Read + Seek> Document<R> {
-    fn new(mut reader: R) -> Result<Self> {
-        let document_size = reader.seek(SeekFrom::End(0))? as usize;
+    fn new(reader: R) -> Result<Self> {
         let mut document = Self {
             reader,
             chunks: vec![],
             log_timestamp_format: None,
             log_default_date: None,
             last_line: None,
-            document_size,
+            document_size: 0,
             default_chunk_size: DEFAULT_CHUNK_SIZE,
         };
-        if document_size > 0 {
-            document.load_chunk(
-                document_size.saturating_sub(DEFAULT_CHUNK_SIZE),
-                document_size,
-            )?;
-            assert!(document.last_line.is_some());
-        } else {
-            document.last_line = Some(String::default());
-        }
+        document.update_docsize_and_lastline()?;
         Ok(document)
     }
 
     pub fn open_file(filename: &str) -> Result<Document<File>> {
         let file = File::open(filename)?;
         Document::<File>::new(file)
+    }
+
+    pub fn update_docsize_and_lastline(&mut self) -> Result<()> {
+        let new_size = self.reader.seek(SeekFrom::End(0))? as usize;
+        if new_size < self.document_size {
+            // todo: exit gracefully
+            panic!("document shouldn't shrink");
+        }
+        self.document_size = new_size;
+        if self.document_size > 0 {
+            self.load_chunk(
+                self.document_size.saturating_sub(DEFAULT_CHUNK_SIZE),
+                self.document_size,
+            )?;
+            assert!(self.last_line.is_some());
+        } else {
+            self.last_line = Some(String::default());
+        }
+        Ok(())
     }
 
     pub fn last_line_start_offset(&self) -> usize {

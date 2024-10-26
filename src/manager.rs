@@ -127,9 +127,7 @@ impl Manager {
             Event::Search(action) => self.on_search_event(action)?,
             Event::SearchNext => self.search_next(Direction::Down, true)?,
             Event::SearchPrevious => self.search_next(Direction::Up, true)?,
-            Event::SeekToEnd => self
-                .window
-                .set_offset(self.document.last_line_start_offset()),
+            Event::SeekToEnd => self.seek_to_end()?,
             Event::SeekToHome => self.window.set_offset(0),
             Event::JumpToTimestamp(action) => self.on_jump_to_timestamp_event(action)?,
             Event::JumpByLines(action) => self.on_jump_by_lines_event(action)?,
@@ -236,6 +234,20 @@ impl Manager {
         } else {
             self.status_bar.set_oneoff_error_text("Not found");
         }
+        Ok(())
+    }
+
+    fn seek_to_end(&mut self) -> Result<()> {
+        self.document.update_docsize_and_lastline()?;
+        let distance = self.document.query_distance_to_above_n_lines(
+            self.document.last_line_start_offset(),
+            self.window.height.saturating_sub(1),
+        )?;
+        self.window.set_offset(
+            self.document
+                .last_line_start_offset()
+                .saturating_sub(distance),
+        );
         Ok(())
     }
 
