@@ -28,9 +28,11 @@ impl StatusBar {
         if let Some(text) = self.oneoff_error_text.clone() {
             self.oneoff_error_text = None;
             canvas.status_bar = LineWithRenderScheme::new(&text).truncate(window_width);
+            canvas.cursor_pos_x = Some(text.len());
             return None;
         }
         let mut text = self.text.clone();
+        canvas.cursor_pos_x = Some(text.len());
         let space_count;
         if self.text.len() + 6 < window_width {
             let ratio_str = format!("{}%", self.ratio);

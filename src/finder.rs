@@ -375,6 +375,7 @@ impl Finder {
         title.truncate(window_width);
         if window_height < MENU_HEIGHT + 5 || window_width < MENU_MIN_WIDTH {
             canvas.status_bar = LineWithRenderScheme::new(&title);
+            canvas.cursor_pos_x = None;
             return;
         }
         canvas.popup_menu.clear();
@@ -414,6 +415,7 @@ impl Finder {
         }
         assert!(canvas.popup_menu.len() == MENU_HEIGHT);
         canvas.status_bar = LineWithRenderScheme::default();
+        canvas.cursor_pos_x = Some(0);
     }
 }
 

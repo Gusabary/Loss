@@ -4,7 +4,7 @@ use std::io::{stdout, Write};
 
 use anyhow::{Ok, Result};
 use crossterm::{
-    cursor::MoveTo,
+    cursor::{Hide, MoveTo, Show},
     terminal::{Clear, ClearType},
     ExecutableCommand,
 };
@@ -14,6 +14,7 @@ pub struct Canvas {
     pub body_area: Vec<LineWithRenderScheme>,
     pub popup_menu: Vec<LineWithRenderScheme>,
     pub status_bar: LineWithRenderScheme,
+    pub cursor_pos_x: Option<usize>,
 }
 
 impl Canvas {
@@ -39,6 +40,15 @@ impl Canvas {
             print!("{line}");
         }
         stdout().flush().unwrap();
+
+        if let Some(x) = self.cursor_pos_x {
+            stdout()
+                .execute(Show)?
+                .execute(MoveTo(x as u16, self.body_area.len() as u16))?;
+        } else {
+            stdout().execute(Hide)?;
+        }
+
         Ok(())
     }
 }

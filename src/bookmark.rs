@@ -105,6 +105,7 @@ impl BookmarkStore {
         title.truncate(window_width);
         if window_height < MENU_HEIGHT + 5 {
             canvas.status_bar = LineWithRenderScheme::new(&title);
+            canvas.cursor_pos_x = None;
             return;
         }
         canvas.popup_menu.clear();
@@ -140,6 +141,7 @@ impl BookmarkStore {
 
         let status_bar_text = &format!("Filter bookmark: {}", self.filter_content);
         canvas.status_bar = LineWithRenderScheme::new(status_bar_text).truncate(window_width);
+        canvas.cursor_pos_x = Some(status_bar_text.len());
     }
 }
 

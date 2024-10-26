@@ -282,7 +282,7 @@ impl Manager {
         match action {
             PromptAction::Start(direction) => {
                 assert!(direction.is_none());
-                self.status_bar.set_text("Jump to timestamp");
+                self.status_bar.set_text("Jump to timestamp: ");
             }
             PromptAction::Content(content) => {
                 self.status_bar
