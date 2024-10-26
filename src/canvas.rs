@@ -24,19 +24,20 @@ impl Canvas {
     }
 
     pub fn render(&self) -> Result<()> {
+        let mut screen_buffer: Vec<String> = vec![];
         let body_area_height = self.body_area.len() - self.popup_menu.len();
-        clear_screen_and_reset_cursor()?;
         for line in self.body_area.iter().take(body_area_height) {
-            let line = line.render();
-            println!("{line}\r");
+            screen_buffer.push(format!("{}\r\n", line.render()));
         }
-
         for line in self.popup_menu.iter() {
-            let line = line.render();
-            println!("{line}\r");
+            screen_buffer.push(format!("{}\r\n", line.render()));
         }
+        screen_buffer.push(self.status_bar.render());
 
-        print!("{}", self.status_bar.render());
+        clear_screen_and_reset_cursor()?;
+        for line in screen_buffer {
+            print!("{line}");
+        }
         stdout().flush().unwrap();
         Ok(())
     }
