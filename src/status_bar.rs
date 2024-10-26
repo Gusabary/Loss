@@ -27,7 +27,7 @@ impl StatusBar {
     pub fn render(&mut self, canvas: &mut Canvas, window_width: usize) -> Option<usize> {
         if let Some(text) = self.oneoff_error_text.clone() {
             self.oneoff_error_text = None;
-            canvas.status_bar = LineWithRenderScheme::new(&text[..window_width]);
+            canvas.status_bar = LineWithRenderScheme::new(&text).truncate(window_width);
             return None;
         }
         let mut text = self.text.clone();

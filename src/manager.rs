@@ -76,7 +76,7 @@ impl Manager {
             }
             let line_with_render_scheme = self.finder.attach_render_scheme(line);
             if self.context.wrap_lines {
-                for idx in 0..line.len() / self.window.width {
+                for idx in 0..=line.len() / self.window.width {
                     let start = idx * self.window.width;
                     let end = std::cmp::min((idx + 1) * self.window.width, line.len());
                     let substr = line_with_render_scheme.substr(start..end);
