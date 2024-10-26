@@ -197,6 +197,14 @@ impl EventSource {
             None
         }
     }
+
+    pub fn exit_search_prompt(&mut self) {
+        self.search_prompt.finish();
+    }
+
+    pub fn cancel_remove_finder_active_slot(&mut self) {
+        self.finder_event_parser.set_state_to_normal();
+    }
 }
 
 #[cfg(test)]

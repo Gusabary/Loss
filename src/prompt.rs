@@ -23,7 +23,7 @@ impl Prompt {
         self.history_index = self.prompt_history.len();
     }
 
-    fn finish(&mut self) {
+    pub fn finish(&mut self) {
         self.prompt_text = None;
     }
 

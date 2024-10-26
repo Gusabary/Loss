@@ -78,6 +78,7 @@ impl Manager {
             self.context.need_rerender = true;
             return Ok(());
         }
+        self.context.raw_lines_buffer.clear();
         self.load_raw_lines_buffer()?;
         self.canvas.clear();
         for line in self.context.raw_lines_buffer.iter() {
@@ -207,8 +208,15 @@ impl Manager {
         match action {
             PromptAction::Start(direction) => {
                 assert!(direction.unwrap().is_vertical());
-                self.context.searching_direction = direction;
-                self.status_bar.set_text("Search: ");
+                if self.finder.active_slots().len() > 1 {
+                    self.event_source.exit_search_prompt();
+                    self.status_bar.set_oneoff_error_text(
+                        "Cannot search with more than one active Finder slot",
+                    );
+                } else {
+                    self.context.searching_direction = direction;
+                    self.status_bar.set_text("Search: ");
+                }
             }
             PromptAction::Content(content) => {
                 self.status_bar.set_text(&format!("Search: {content}"));
@@ -218,17 +226,11 @@ impl Manager {
                 self.status_bar.clear_text();
             }
             PromptAction::Enter(content) => {
-                if self.finder.active_slots().len() > 1 {
-                    // todo: advance this to /
-                    self.status_bar.set_oneoff_error_text(
-                        "Cannot search with more than one active Finder slot",
-                    );
-                } else {
-                    self.status_bar.clear_text();
-                    self.finder.update_search_pattern(&content);
-                    self.search_next(self.context.searching_direction.unwrap(), false)?;
-                    self.context.searching_direction = None;
-                }
+                assert_eq!(self.finder.active_slots().len(), 1);
+                self.status_bar.clear_text();
+                self.finder.update_search_pattern(&content);
+                self.search_next(self.context.searching_direction.unwrap(), false)?;
+                self.context.searching_direction = None;
             }
         }
         Ok(())
@@ -390,7 +392,13 @@ impl Manager {
         if action == FinderAction::AddActiveSlotStart {
             self.status_bar.set_text("Adding Finder active slot ...");
         } else if action == FinderAction::RemoveActiveSlotStart {
-            self.status_bar.set_text("Removing Finder active slot ...");
+            if self.finder.active_slots().len() == 1 {
+                self.event_source.cancel_remove_finder_active_slot();
+                self.status_bar
+                    .set_oneoff_error_text("Cannot remove active slot when there is only one");
+            } else {
+                self.status_bar.set_text("Removing Finder active slot ...");
+            }
         } else {
             self.status_bar.clear_text();
             self.finder.handle_event(action);

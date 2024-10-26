@@ -233,10 +233,9 @@ impl Finder {
     }
 
     pub fn remove_active_slot(&mut self, slot_index: usize) {
-        if self.active_slots.len() > 1 {
-            self.active_slots.remove(&slot_index);
-            assert!(!self.active_slots.is_empty());
-        }
+        assert!(self.active_slots.len() > 1);
+        self.active_slots.remove(&slot_index);
+        assert!(!self.active_slots.is_empty());
     }
 
     pub fn toggle_highlight_flag(&mut self) {
@@ -450,6 +449,10 @@ pub struct FinderEventParser {
 }
 
 impl FinderEventParser {
+    pub fn set_state_to_normal(&mut self) {
+        self.state = FinderEventParserState::Normal;
+    }
+
     pub fn try_parse_raw_event(&mut self, key: &KeyEvent) -> Option<FinderAction> {
         if key.modifiers != KeyModifiers::NONE && key.modifiers != KeyModifiers::SHIFT {
             return None;
