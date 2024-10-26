@@ -1,5 +1,7 @@
+use std::time::Duration;
+
 use anyhow::{Ok, Result};
-use crossterm::event::{self, read, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, poll, read, KeyCode, KeyEvent, KeyModifiers};
 use log::info;
 
 use crate::{
@@ -36,6 +38,14 @@ impl Direction {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy, Default)]
+pub enum InterruptState {
+    #[default]
+    Uninterruptable,
+    Interruptable,
+    Interrupted,
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Event {
     WindowMove(Direction, usize),
@@ -67,6 +77,19 @@ pub struct EventSource {
 }
 
 impl EventSource {
+    pub fn check_for_interrupt(&mut self) -> Result<bool> {
+        let has_event = poll(Duration::from_secs(0))?;
+        if has_event {
+            let raw_event = read()?;
+            if let event::Event::Key(key) = raw_event {
+                if key.modifiers == KeyModifiers::CONTROL && key.code == KeyCode::Char('c') {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub fn wait_for_event(&mut self) -> Result<Event> {
         loop {
             let raw_event = read()?;

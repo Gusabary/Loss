@@ -1,11 +1,14 @@
-use std::{collections::BTreeSet, ops::Range};
+use std::collections::BTreeSet;
 
 use crossterm::{
     event::{KeyCode, KeyEvent, KeyModifiers},
     style::{Color, Stylize},
 };
 
-use crate::render::{render_line, RenderScheme, Renderer};
+use crate::{
+    canvas::Canvas,
+    render::{LineWithRenderScheme, RenderScheme},
+};
 
 #[derive(Debug, PartialEq)]
 enum HighlightFlag {
@@ -22,8 +25,8 @@ impl HighlightFlag {
     }
 }
 
-#[derive(Debug)]
-struct HighlightOption {
+#[derive(Debug, Clone, Copy)]
+pub struct HighlightOption {
     foreground_color: Color,
     background_color: Color,
 }
@@ -52,11 +55,14 @@ impl HighlightOption {
         }
     }
 
-    fn render_schemas(&self) -> Vec<RenderScheme> {
-        vec![
-            RenderScheme::ForegroundColor(self.foreground_color),
-            RenderScheme::BackgroundColor(self.background_color),
-        ]
+    fn render_scheme(&self) -> RenderScheme {
+        RenderScheme::Highlight(*self)
+    }
+
+    pub fn render(&self, raw: &str) -> String {
+        raw.with(self.foreground_color)
+            .on(self.background_color)
+            .to_string()
     }
 }
 
@@ -286,18 +292,8 @@ impl Finder {
         true
     }
 
-    pub fn render_body_area(&self, renderer: &mut Renderer) {
-        let body_area_height = renderer.buffer.len() - renderer.popup_menu_render_text.len();
-        renderer.buffer = renderer
-            .buffer
-            .iter()
-            .take(body_area_height)
-            .map(|line| self.render_line(line))
-            .collect()
-    }
-
-    fn render_line(&self, line: &str) -> String {
-        let mut range_scheme: Vec<(Range<usize>, Vec<RenderScheme>)> = vec![];
+    pub fn attach_render_scheme(&self, line: &str) -> LineWithRenderScheme {
+        let mut line_with_scheme = LineWithRenderScheme::new(line);
         // active slots have higher priority than inactive ones
         let (active, inactive): (Vec<_>, Vec<_>) = self
             .slots
@@ -309,51 +305,52 @@ impl Finder {
             }
             // todo: handle regex pattern type
             // todo: find all appearance instead of only the first one
-            // todo: handle wrapped match
             if let Some(pattern) = &slot.pattern {
                 if let Some(start) = line.find(pattern) {
                     let end = start + pattern.len();
-                    if range_scheme
-                        .iter()
-                        .all(|(range, _)| !(range.start < end && start < range.end))
-                    {
-                        range_scheme.push((start..end, slot.highlight_option.render_schemas()));
-                    }
+                    line_with_scheme.add_scheme_if_not_overlap(
+                        start..end,
+                        slot.highlight_option.render_scheme(),
+                    );
                 }
             }
         }
-        render_line(line, range_scheme)
+        line_with_scheme
     }
 
-    pub fn render_status_bar(&self, renderer: &mut Renderer, space_count: usize) {
+    pub fn render_status_bar(&self, canvas: &mut Canvas, space_count: usize) {
         if space_count < 40 {
             return;
         }
-        let text = &mut renderer.status_bar_render_text;
-        let end = text.len() - 5;
-        let mut slot_str = String::default();
+        let mut raw_content = canvas.status_bar.raw_content().to_string();
+        let slots_section_end = raw_content.len() - 5;
+        let slots_section_start = slots_section_end - 32;
+        let mut current_slot_start = slots_section_start;
         for slot in self.slots.iter() {
             let maybe_cursor = if self.active_slots.contains(&slot.slot_index) {
                 '*'
             } else {
                 ' '
             };
-            let rendered_index = if slot.pattern.is_some() {
-                slot.slot_index
-                    .to_string()
-                    .with(slot.highlight_option.foreground_color)
-                    .on(slot.highlight_option.background_color)
-                    .to_string()
+            raw_content.replace_range(
+                current_slot_start + 1..current_slot_start + 3,
+                &format!("{maybe_cursor}{}", slot.slot_index),
+            );
+            let scheme = if slot.pattern.is_some() {
+                slot.highlight_option.render_scheme()
             } else {
-                slot.slot_index.to_string().dim().to_string()
+                RenderScheme::Dim
             };
-            slot_str.push_str(&format!(" {maybe_cursor}{}", rendered_index));
+            canvas
+                .status_bar
+                .add_scheme_if_not_overlap(current_slot_start + 2..current_slot_start + 3, scheme);
+            current_slot_start += 3;
         }
-        slot_str.push_str(" |");
-        text.replace_range(end - 32..end, &slot_str);
+        raw_content.replace_range(slots_section_end - 2..slots_section_end, " |");
+        canvas.status_bar.set_raw_content(&raw_content);
     }
 
-    pub fn render_menu(&self, renderer: &mut Renderer, window_width: usize, window_height: usize) {
+    pub fn render_menu(&self, canvas: &mut Canvas, window_width: usize, window_height: usize) {
         const MENU_HEIGHT: usize = 11;
         const MENU_MIN_WIDTH: usize = 50;
         const FINDER_MENU_STR: &str = " Finder Menu ";
@@ -363,57 +360,46 @@ impl Finder {
         title.replace_range(begin..begin + FINDER_MENU_STR.len(), FINDER_MENU_STR);
         title.truncate(window_width);
         if window_height < MENU_HEIGHT + 5 || window_width < MENU_MIN_WIDTH {
-            renderer.status_bar_render_text = title;
+            canvas.status_bar = LineWithRenderScheme::new(&title);
             return;
         }
-
-        let menu_canvas = &mut renderer.popup_menu_render_text;
-        menu_canvas.clear();
-        menu_canvas.push(title);
+        canvas.popup_menu.clear();
+        canvas.popup_menu.push(LineWithRenderScheme::new(&title));
         for slot in self.slots.iter() {
             let maybe_cursor = if self.active_slots.contains(&slot.slot_index) {
                 '*'
             } else {
                 ' '
             };
-            let mut line = format!(
+            let raw_line = &format!(
                 " {maybe_cursor} {} | On Off | Fold Exclusive | Raw Regex | {}",
                 slot.slot_index,
                 slot.pattern.as_ref().unwrap_or(&String::default())
             );
-            line.truncate(window_width);
-
-            let mut range_scheme = vec![];
-            range_scheme.push((
-                3..4,
-                vec![
-                    RenderScheme::ForegroundColor(slot.highlight_option.foreground_color),
-                    RenderScheme::BackgroundColor(slot.highlight_option.background_color),
-                ],
-            ));
+            let mut rendered_line = LineWithRenderScheme::new(raw_line).truncate(window_width);
+            rendered_line.add_scheme_if_not_overlap(3..4, slot.highlight_option.render_scheme());
             if slot.highlight_flag != HighlightFlag::On {
-                range_scheme.push((7..9, vec![RenderScheme::Dim]));
+                rendered_line.add_scheme_if_not_overlap(7..9, RenderScheme::Dim);
             }
             if slot.highlight_flag != HighlightFlag::Off {
-                range_scheme.push((10..13, vec![RenderScheme::Dim]));
+                rendered_line.add_scheme_if_not_overlap(10..13, RenderScheme::Dim);
             }
             if slot.advanced_action != AdvancedAction::Fold {
-                range_scheme.push((16..20, vec![RenderScheme::Dim]));
+                rendered_line.add_scheme_if_not_overlap(16..20, RenderScheme::Dim);
             }
             if slot.advanced_action != AdvancedAction::Exclusive {
-                range_scheme.push((21..30, vec![RenderScheme::Dim]));
+                rendered_line.add_scheme_if_not_overlap(21..30, RenderScheme::Dim);
             }
             if slot.pattern_type != PatternType::Raw {
-                range_scheme.push((33..36, vec![RenderScheme::Dim]));
+                rendered_line.add_scheme_if_not_overlap(33..36, RenderScheme::Dim);
             }
             if slot.pattern_type != PatternType::Regex {
-                range_scheme.push((37..42, vec![RenderScheme::Dim]));
+                rendered_line.add_scheme_if_not_overlap(37..42, RenderScheme::Dim);
             }
-            let rendered_line = render_line(&line, range_scheme);
-            menu_canvas.push(rendered_line);
+            canvas.popup_menu.push(rendered_line);
         }
-        assert!(menu_canvas.len() == MENU_HEIGHT);
-        renderer.status_bar_render_text = String::default();
+        assert!(canvas.popup_menu.len() == MENU_HEIGHT);
+        canvas.status_bar = LineWithRenderScheme::default();
     }
 }
 

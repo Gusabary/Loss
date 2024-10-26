@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::{event_source::Direction, render::Renderer};
+use crate::{canvas::Canvas, event_source::Direction, render::LineWithRenderScheme};
 
 pub const BOOKMARK_NAME_MAX_LEN: usize = 50;
 
@@ -95,21 +95,20 @@ impl BookmarkStore {
             .collect();
     }
 
-    pub fn render(&self, renderer: &mut Renderer, window_width: usize, window_height: usize) {
+    pub fn render(&self, canvas: &mut Canvas, window_width: usize, window_height: usize) {
         const MENU_HEIGHT: usize = 10;
         const BOOK_MENU_STR: &str = " Bookmark Menu ";
         let width = std::cmp::max(window_width, 20);
         let mut title = "=".repeat(width);
         let begin = (width - BOOK_MENU_STR.len()) / 2;
         title.replace_range(begin..begin + BOOK_MENU_STR.len(), BOOK_MENU_STR);
+        title.truncate(window_width);
         if window_height < MENU_HEIGHT + 5 {
-            renderer.status_bar_render_text = title;
-            renderer.status_bar_render_text.truncate(window_width);
+            canvas.status_bar = LineWithRenderScheme::new(&title);
             return;
         }
-        let menu_canvas = &mut renderer.popup_menu_render_text;
-        menu_canvas.clear();
-        menu_canvas.push(title);
+        canvas.popup_menu.clear();
+        canvas.popup_menu.push(LineWithRenderScheme::new(&title));
         let menu_index = self.menu_index.unwrap();
         let displayed_bookmarkes: Vec<_> =
             if menu_index + MENU_HEIGHT > self.filtered_bookmarks.len() {
@@ -130,18 +129,17 @@ impl BookmarkStore {
             };
         for (index, (name, _, line)) in displayed_bookmarkes.iter() {
             let maybe_cursor = if *index == menu_index { '>' } else { ' ' };
-            menu_canvas.push(format!(
-                " {maybe_cursor} {name:<BOOKMARK_NAME_MAX_LEN$}    {line}"
-            ));
+            let raw_line = &format!(" {maybe_cursor} {name:<BOOKMARK_NAME_MAX_LEN$}    {line}");
+            let menu_line = LineWithRenderScheme::new(raw_line).truncate(window_width);
+            canvas.popup_menu.push(menu_line);
         }
-        assert!(menu_canvas.len() <= MENU_HEIGHT);
-        for line in menu_canvas.iter_mut() {
-            line.truncate(window_width);
-        }
-        menu_canvas.resize(MENU_HEIGHT, String::default());
+        assert!(canvas.popup_menu.len() <= MENU_HEIGHT);
+        canvas
+            .popup_menu
+            .resize(MENU_HEIGHT, LineWithRenderScheme::default());
 
-        renderer.status_bar_render_text = format!("Filter bookmark: {}", self.filter_content);
-        renderer.status_bar_render_text.truncate(window_width);
+        let status_bar_text = &format!("Filter bookmark: {}", self.filter_content);
+        canvas.status_bar = LineWithRenderScheme::new(status_bar_text).truncate(window_width);
     }
 }
 

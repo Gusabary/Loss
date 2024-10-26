@@ -1,4 +1,4 @@
-use crate::render::Renderer;
+use crate::{canvas::Canvas, render::LineWithRenderScheme};
 
 #[derive(Debug, Default)]
 pub struct StatusBar {
@@ -24,11 +24,10 @@ impl StatusBar {
         self.ratio = ratio;
     }
 
-    pub fn render(&mut self, renderer: &mut Renderer, window_width: usize) -> Option<usize> {
-        if let Some(mut text) = self.oneoff_error_text.clone() {
+    pub fn render(&mut self, canvas: &mut Canvas, window_width: usize) -> Option<usize> {
+        if let Some(text) = self.oneoff_error_text.clone() {
             self.oneoff_error_text = None;
-            text.truncate(window_width);
-            renderer.status_bar_render_text = text;
+            canvas.status_bar = LineWithRenderScheme::new(&text[..window_width]);
             return None;
         }
         let mut text = self.text.clone();
@@ -43,7 +42,7 @@ impl StatusBar {
             space_count = None;
             text.truncate(window_width);
         }
-        renderer.status_bar_render_text = text;
+        canvas.status_bar = LineWithRenderScheme::new(&text);
         space_count
     }
 }

@@ -4,6 +4,7 @@ use manager::Manager;
 use std::env;
 
 mod bookmark;
+mod canvas;
 mod chunk;
 mod document;
 mod event_source;

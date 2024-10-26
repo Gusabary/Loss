@@ -2,12 +2,13 @@ use std::fs::File;
 
 use crate::{
     bookmark::{BookmarkMenuAction, BookmarkStore, BOOKMARK_NAME_MAX_LEN},
+    canvas::{clear_screen_and_reset_cursor, Canvas},
     document::Document,
-    event_source::{Direction, Event, EventSource},
+    event_source::{Direction, Event, EventSource, InterruptState},
     finder::{Finder, FinderAction},
     log_timestamp::parse_log_timestamp,
     prompt::PromptAction,
-    render::{clear_screen_and_reset_cursor, Renderer},
+    render::LineWithRenderScheme,
     status_bar::StatusBar,
     window::Window,
 };
@@ -20,6 +21,7 @@ struct Context {
     searching_direction: Option<Direction>,
     jumping_direction: Option<Direction>,
     wrap_lines: bool,
+    interrupt_state: InterruptState,
 }
 
 pub struct Manager {
@@ -27,10 +29,11 @@ pub struct Manager {
     window: Window,
     status_bar: StatusBar,
     event_source: EventSource,
-    renderer: Renderer,
+    // renderer: Renderer,
     bookmark_store: BookmarkStore,
     finder: Finder,
     context: Context,
+    canvas: Canvas,
 }
 
 impl Manager {
@@ -41,16 +44,17 @@ impl Manager {
             window: Window::new()?,
             status_bar: StatusBar::default(),
             event_source: EventSource::default(),
-            renderer: Renderer::default(),
+            // renderer: Renderer::default(),
             bookmark_store: BookmarkStore::default(),
             finder: Finder::new(),
             context: Context::default(),
+            canvas: Canvas::default(),
         })
     }
 
     pub fn run(&mut self) -> Result<()> {
         loop {
-            self.fill_buffer_and_render()?;
+            self.fill_canvas_and_render()?;
             let should_exit = self.listen_and_dispatch_event()?;
             self.ensure_consistency()?;
             if should_exit {
@@ -60,67 +64,60 @@ impl Manager {
         }
     }
 
-    fn fill_buffer_and_render(&mut self) -> Result<()> {
+    fn fill_canvas_and_render(&mut self) -> Result<()> {
         self.context.raw_lines = self
             .document
             .query_lines(self.window.offset(), self.window.height)?;
 
-        self.renderer.buffer.clear();
+        self.canvas.clear();
         for line in self.context.raw_lines.iter() {
             if !self.finder.can_pass_advance_action(line) {
                 continue;
             }
+            let line_with_render_scheme = self.finder.attach_render_scheme(line);
             if self.context.wrap_lines {
-                if line.is_empty() {
-                    self.renderer.buffer.push(String::default());
-                    continue;
-                }
-                for wrapped_line in line
-                    .chars()
-                    .collect::<Vec<char>>()
-                    .chunks(self.window.width)
-                    .map(|chunk| chunk.iter().collect::<String>())
-                {
-                    self.renderer.buffer.push(wrapped_line);
+                for idx in 0..line.len() / self.window.width {
+                    let start = idx * self.window.width;
+                    let end = std::cmp::min((idx + 1) * self.window.width, line.len());
+                    let substr = line_with_render_scheme.substr(start..end);
+                    self.canvas.body_area.push(substr);
                 }
             } else {
-                let displayed_line = if self.window.horizontal_shift >= line.len() {
-                    ""
-                } else {
-                    let upper =
-                        std::cmp::min(self.window.horizontal_shift + self.window.width, line.len());
-                    &line[self.window.horizontal_shift..upper]
-                };
-                self.renderer.buffer.push(displayed_line.to_string());
+                let start = self.window.horizontal_shift;
+                let end = start + self.window.width;
+                let substr = line_with_render_scheme.substr(start..end);
+                self.canvas.body_area.push(substr);
             }
         }
-        self.renderer
-            .buffer
-            .resize(self.window.height, "~".to_string());
+        self.canvas
+            .body_area
+            .resize(self.window.height, LineWithRenderScheme::new("~"));
 
         if self.bookmark_store.is_active() {
             self.bookmark_store
-                .render(&mut self.renderer, self.window.width, self.window.height);
+                .render(&mut self.canvas, self.window.width, self.window.height);
         } else if self.finder.is_menu_active() {
             self.finder
-                .render_menu(&mut self.renderer, self.window.width, self.window.height);
+                .render_menu(&mut self.canvas, self.window.width, self.window.height);
         } else {
             let ratio = self.document.percent_ratio_of_offset(self.window.offset());
             self.status_bar.set_ratio(ratio);
-            if let Some(space_count) = self
-                .status_bar
-                .render(&mut self.renderer, self.window.width)
-            {
-                self.finder
-                    .render_status_bar(&mut self.renderer, space_count);
+            if let Some(space_count) = self.status_bar.render(&mut self.canvas, self.window.width) {
+                self.finder.render_status_bar(&mut self.canvas, space_count);
             }
         }
-        self.finder.render_body_area(&mut self.renderer);
-        self.renderer.render()?;
+        self.canvas.render()?;
         Ok(())
     }
 
     fn listen_and_dispatch_event(&mut self) -> Result<bool> {
+        if self.context.interrupt_state == InterruptState::Interruptable {
+            let has_interrupt = self.event_source.check_for_interrupt()?;
+            if has_interrupt {
+                self.context.interrupt_state = InterruptState::Interrupted;
+            }
+            return Ok(false);
+        }
         let event = self.event_source.wait_for_event()?;
         info!("[run] new event: {:?}", event);
         match event {
