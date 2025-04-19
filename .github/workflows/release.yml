@@ -7,9 +7,6 @@ on:
 jobs:
   release:
     name: Release
-    if: >-
-      ${{ github.event.release.prerelease == false }} &&
-      ${{ github.event.changes.pre_release.from == true }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -41,6 +38,10 @@ jobs:
         id: package
         shell: bash
         run: |
+          echo "--------------------------------"
+          echo ${{ github.event.release.prerelease }}
+          echo ${{ github.event.changes.pre_release.from }}
+          echo "--------------------------------"
           mkdir release
           cp target/release/loss release/
           cp README.md release/
