@@ -8,8 +8,8 @@ jobs:
   release:
     name: Release
     if: >-
-      github.event.release.prerelease == false &&
-      github.event.changes.pre_release.from == true
+      ${{ github.event.release.prerelease == false }} &&
+      ${{ github.event.changes.pre_release.from == true }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
