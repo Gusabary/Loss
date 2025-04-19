@@ -45,7 +45,11 @@ fn init_logger() {
 }
 
 fn main() -> Result<()> {
-    init_logger();
+    if let std::result::Result::Ok(enabled) = std::env::var("LOSS_LOG_ENABLED") {
+        if enabled == "1" {
+            init_logger();
+        }
+    }
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         print_usage();
