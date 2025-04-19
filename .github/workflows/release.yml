@@ -4,6 +4,9 @@ on:
   release:
     types: [ edited ]
 
+permissions:
+  contents: read
+  
 jobs:
   release:
     name: Release
