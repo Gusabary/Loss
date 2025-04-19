@@ -1,6 +1,6 @@
 [package]
 name = "loss-viewer"  # why crate.io doesn't have package namespace !!
-version = "0.1.0"
+version = "0.1.1"
 description = "A modern terminal pager and log viewer."
 authors = ["Gusabary <Gusabary@126.com>"]
 keywords = ["cli", "terminal-pager", "log-viewer"]
@@ -10,6 +10,10 @@ repository = "https://github.com/Gusabary/Loss"
 readme = "README.md"
 license = "MIT"
 edition = "2021"
+
+[[bin]]
+name = "loss"
+path = "src/main.rs"
 
 [dependencies]
 chrono = "0.4"

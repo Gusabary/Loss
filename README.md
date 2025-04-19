@@ -1,6 +1,6 @@
 # Loss
 
-![](https://img.shields.io/badge/loss-v0.1.0-9cf)
+![](https://img.shields.io/badge/loss-is%20more%20%3A%29-9cf)
 
 Loss is a modern terminal pager and log viewer designed for efficient log file viewing and navigation.
 
