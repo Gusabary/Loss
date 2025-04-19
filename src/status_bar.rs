@@ -38,7 +38,7 @@ impl StatusBar {
             let ratio_str = format!("{}%", self.ratio);
             assert!(ratio_str.len() <= 4);
             space_count = Some(window_width - self.text.len() - ratio_str.len());
-            text.extend(std::iter::repeat(' ').take(space_count.unwrap()));
+            text.extend(std::iter::repeat_n(' ', space_count.unwrap()));
             text.push_str(&ratio_str);
         } else {
             space_count = None;
