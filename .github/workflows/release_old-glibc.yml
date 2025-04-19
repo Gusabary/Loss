@@ -2,7 +2,7 @@ name: Release for glibc 2.17
 
 on:
   release:
-    types: [ created ]
+    types: [ prereleased ]
 
 jobs:
   release:
