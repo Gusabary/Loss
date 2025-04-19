@@ -274,7 +274,7 @@ impl Finder {
         }
     }
 
-    pub fn can_pass_advance_action(&self, line: &str) -> bool {
+    pub fn can_pass_advanced_action(&self, line: &str) -> bool {
         let fold_patterns = self
             .slots
             .iter()

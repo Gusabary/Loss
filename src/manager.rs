@@ -82,7 +82,7 @@ impl Manager {
         self.load_raw_lines_buffer()?;
         self.canvas.clear();
         for line in self.context.raw_lines_buffer.iter() {
-            if !self.finder.can_pass_advance_action(line) {
+            if !self.finder.can_pass_advanced_action(line) {
                 continue;
             }
             let line_with_render_scheme = self.finder.attach_render_scheme(line);
@@ -127,7 +127,7 @@ impl Manager {
         let lines = self.document.query_lines(offset, line_count_to_query)?;
         let filtered_lines = lines
             .into_iter()
-            .filter(|line| self.finder.can_pass_advance_action(line));
+            .filter(|line| self.finder.can_pass_advanced_action(line));
         self.context.raw_lines_buffer.extend(filtered_lines);
         Ok(())
     }
@@ -138,7 +138,11 @@ impl Manager {
                 self.mode = Mode::Normal;
                 self.status_bar.clear_text();
             } else if self.mode == Mode::Follow {
-                self.seek_to_end()?;
+                let document_updated = self.document.update_docsize_and_lastline()?;
+                self.context.need_rerender = document_updated;
+                if document_updated {
+                    self.seek_to_end()?;
+                }
             }
             return Ok(false);
         }
@@ -264,8 +268,6 @@ impl Manager {
     }
 
     fn seek_to_end(&mut self) -> Result<()> {
-        let document_updated = self.document.update_docsize_and_lastline()?;
-        self.context.need_rerender = document_updated;
         let distance = self.document.query_distance_to_above_n_lines(
             self.document.last_line_start_offset(),
             self.window.height.saturating_sub(1),
@@ -408,6 +410,7 @@ impl Manager {
 
     fn enter_follow_mode(&mut self) -> Result<()> {
         assert_eq!(self.mode, Mode::Normal);
+        self.seek_to_end()?;
         self.mode = Mode::Follow;
         self.status_bar
             .set_text("Waiting for data... (interrupt to abort)");
