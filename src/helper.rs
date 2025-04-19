@@ -28,58 +28,30 @@ impl HelperMenu {
             canvas.cursor_pos_x = None;
             return;
         }
-
-        canvas.popup_menu.clear();
-        canvas.popup_menu.push(LineWithRenderScheme::new(&title));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "+------- basic commands -------+     +------- finder commands -------+",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| q: exit                      |     | +:   add active slot          |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| w: toggle wrap line          |     | -:   remove active slot       |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| /: search down               |     | 0-9: switch active slot       |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| ?: search up                 |     | o:   toggle highlight flag    |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| n: search next               |     | r:   toggle raw/regex pattern |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| N: search previous           |     | x:   clear slot content       |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| t: jump to timestamp         |     | m:   open finder menu         |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| j: jump down n lines         |     +-------------------------------+",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| J: jump up n lines           |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| b: set bookmark              |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| g: open bookmark menu        |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| ,: undo window vertical move |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| .: redo window vertical move |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "| F: enter follow mode         |",
-        ));
-        canvas.popup_menu.push(LineWithRenderScheme::new(
-            "+------------------------------+",
-        ));
+        populate_helper_menu(canvas, &title);
         canvas.status_bar = LineWithRenderScheme::default();
         canvas.cursor_pos_x = Some(0);
     }
+}
+
+#[rustfmt::skip]
+fn populate_helper_menu(canvas: &mut Canvas, title: &str) {
+    canvas.popup_menu.clear();
+    canvas.popup_menu.push(LineWithRenderScheme::new(&title));
+    canvas.popup_menu.push(LineWithRenderScheme::new("+------- basic commands -------+     +------- finder commands -------+"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| q: exit                      |     | +:   add active slot          |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| w: toggle wrap line          |     | -:   remove active slot       |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| /: search down               |     | 0-9: switch active slot       |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| ?: search up                 |     | o:   toggle highlight flag    |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| n: search next               |     | r:   toggle raw/regex pattern |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| N: search previous           |     | x:   clear slot content       |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| t: jump to timestamp         |     | m:   open finder menu         |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| j: jump down n lines         |     +-------------------------------+"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| J: jump up n lines           |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| b: set bookmark              |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| g: open bookmark menu        |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| ,: undo window vertical move |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| .: redo window vertical move |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("| F: enter follow mode         |"));
+    canvas.popup_menu.push(LineWithRenderScheme::new("+------------------------------+"));
 }
