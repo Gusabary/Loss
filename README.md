@@ -50,10 +50,10 @@ loss <filename>
 | Jump | `t` | Jump to timestamp |
 | | `j` | Jump down n lines |
 | | `J` | Jump up n lines |
-| | `PageUp/Down` | Move 5 lines |
-| | `Ctrl + PageUp/Down` | Move 20 lines |
-| | `Home` | Go to start |
-| | `End` | Go to end |
+| | `PageUp/Down` | Jump up/down 5 lines |
+| | `Ctrl+PageUp/Down` | Jump up/down 20 lines |
+| | `Home` | Jump to start |
+| | `End` | Jump to end |
 | | `,` | Undo window vertical move |
 | | `.` | Redo window vertical move |
 | Bookmark | `b` | Set bookmark |
