@@ -1,6 +1,14 @@
 [package]
 name = "loss"
 version = "0.1.0"
+description = "A modern terminal pager and log viewer."
+authors = ["Gusabary <Gusabary@126.com>"]
+keywords = ["cli", "terminal pager", "log viewer"]
+documentation = "https://github.com/Gusabary/Loss/blob/master/README.md"
+homepage = "https://github.com/Gusabary/Loss"
+repository = "https://github.com/Gusabary/Loss"
+readme = "README.md"
+license = "MIT"
 edition = "2021"
 
 [dependencies]

@@ -2,7 +2,7 @@
 
 ![](https://img.shields.io/badge/loss-v0.1.0-9cf)
 
-Loss is a modern terminal pager and log viewer designed for efficient log file viewing and navigation. 
+Loss is a modern terminal pager and log viewer designed for efficient log file viewing and navigation.
 
 ## Features
 
