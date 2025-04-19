@@ -37,42 +37,34 @@ loss <filename>
 ```
 
 ## Key Bindings
-
-### Basic
-- `q`: Exit
-- `w`: Toggle wrap line
-- `F`: Enter follow mode
-- `h`: Toggle helper menu
-
-### Search
-- `/`: Search down
-- `?`: Search up
-- `n`: Search next
-- `N`: Search previous
-
-### Jump
-- `t`: Jump to timestamp
-- `j`: Jump down n lines
-- `J`: Jump up n lines
-- `PageUp/Down`: Move 5 lines
-- `Ctrl + PageUp/Down`: Move 20 lines
-- `Home`: Go to start
-- `End`: Go to end
-- `,`: Undo window vertical move
-- `.`: Redo window vertical move
-
-### Bookmark
-- `b`: Set bookmark
-- `g`: Open bookmark menu
-
-### Finder
-- `+`: Add active slot
-- `-`: Remove active slot
-- `0-9`: Switch active slot
-- `o`: Toggle highlight flag
-- `r`: Toggle raw/regex pattern
-- `x`: Clear slot content 
-- `m`: Open finder menu
+| Category | Key | Description |
+|----------|-----|-------------|
+| Basic | `q` | Exit |
+| | `w` | Toggle wrap line |
+| | `F` | Enter follow mode |
+| | `h` | Toggle helper menu |
+| Search | `/` | Search down |
+| | `?` | Search up |
+| | `n` | Search next |
+| | `N` | Search previous |
+| Jump | `t` | Jump to timestamp |
+| | `j` | Jump down n lines |
+| | `J` | Jump up n lines |
+| | `PageUp/Down` | Move 5 lines |
+| | `Ctrl + PageUp/Down` | Move 20 lines |
+| | `Home` | Go to start |
+| | `End` | Go to end |
+| | `,` | Undo window vertical move |
+| | `.` | Redo window vertical move |
+| Bookmark | `b` | Set bookmark |
+| | `g` | Open bookmark menu |
+| Finder | `+` | Add active slot |
+| | `-` | Remove active slot |
+| | `0-9` | Switch active slot |
+| | `o` | Toggle highlight flag |
+| | `r` | Toggle raw/regex pattern |
+| | `x` | Clear slot content |
+| | `m` | Open finder menu |
 
 ## License
 
