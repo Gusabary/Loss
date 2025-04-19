@@ -1,5 +1,5 @@
 [package]
-name = "loss"
+name = "loss-viewer"  # why crate.io doesn't have package namespace !!
 version = "0.1.0"
 description = "A modern terminal pager and log viewer."
 authors = ["Gusabary <Gusabary@126.com>"]
