@@ -37,7 +37,7 @@ impl HelperMenu {
 #[rustfmt::skip]
 fn populate_helper_menu(canvas: &mut Canvas, title: &str) {
     canvas.popup_menu.clear();
-    canvas.popup_menu.push(LineWithRenderScheme::new(&title));
+    canvas.popup_menu.push(LineWithRenderScheme::new(title));
     canvas.popup_menu.push(LineWithRenderScheme::new("+------- basic commands -------+     +------- finder commands -------+"));
     canvas.popup_menu.push(LineWithRenderScheme::new("| q: exit                      |     | +:   add active slot          |"));
     canvas.popup_menu.push(LineWithRenderScheme::new("| w: toggle wrap line          |     | -:   remove active slot       |"));
