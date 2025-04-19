@@ -4,6 +4,9 @@ on:
   release:
     types: [ prereleased ]
 
+permissions:
+  contents: write
+
 jobs:
   prerelease:
     name: Prerelease

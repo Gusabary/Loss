@@ -7,6 +7,7 @@ on:
 jobs:
   release:
     name: Release
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
