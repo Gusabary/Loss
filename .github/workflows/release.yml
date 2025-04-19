@@ -2,7 +2,7 @@ name: Release
 
 on:
   release:
-    types: [ prereleased ]
+    types: [ published ]
 
 jobs:
   release:
@@ -14,14 +14,6 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
-
-      - name: Verify crate version matches release tag
-        run: |
-          CRATE_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f 2)
-          if [[ "v$CRATE_VERSION" != "${{ github.ref_name }}" ]]; then
-            echo "Error: Cargo.toml version ($CRATE_VERSION) doesn't match release tag (${{ github.ref_name }})"
-            exit 1
-          fi
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -40,12 +32,6 @@ jobs:
         with:
           command: build
           args: --release
-      
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          cargo publish --verbose
       
       - name: Create package
         working-directory: ${{ runner.workspace }}/Loss/
@@ -69,9 +55,3 @@ jobs:
           asset_path: ${{ steps.package.outputs.name }}
           asset_name: ${{ steps.package.outputs.name }}
           asset_content_type: application/gzip
-      
-      - name: Publish draft release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release edit ${{ github.ref_name }} --draft=false
