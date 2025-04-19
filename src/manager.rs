@@ -6,6 +6,7 @@ use crate::{
     document::Document,
     event_source::{Direction, Event, EventSource},
     finder::{Finder, FinderAction},
+    helper::HelperMenu,
     log_timestamp::parse_log_timestamp,
     prompt::PromptAction,
     render::LineWithRenderScheme,
@@ -38,6 +39,7 @@ pub struct Manager {
     event_source: EventSource,
     bookmark_store: BookmarkStore,
     finder: Finder,
+    helper_menu: HelperMenu,
     context: Context,
     canvas: Canvas,
     mode: Mode,
@@ -53,6 +55,7 @@ impl Manager {
             event_source: EventSource::default(),
             bookmark_store: BookmarkStore::default(),
             finder: Finder::new(),
+            helper_menu: HelperMenu::default(),
             context: Context::default(),
             canvas: Canvas::default(),
             mode: Mode::Normal,
@@ -110,6 +113,9 @@ impl Manager {
         } else if self.finder.is_menu_active() {
             self.finder
                 .render_menu(&mut self.canvas, self.window.width, self.window.height);
+        } else if self.helper_menu.is_active() {
+            self.helper_menu
+                .render(&mut self.canvas, self.window.width, self.window.height);
         } else {
             let ratio = self.document.percent_ratio_of_offset(self.window.offset());
             self.status_bar.set_ratio(ratio);
@@ -166,6 +172,7 @@ impl Manager {
             Event::RedoWindowVerticalMove => self.window.goto_next_offset(),
             Event::FinderOperation(action) => self.on_finder_event(action)?,
             Event::Follow => self.enter_follow_mode()?,
+            Event::ToggleHelperMenu => self.helper_menu.toggle_active(),
         }
         Ok(false)
     }

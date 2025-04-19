@@ -9,6 +9,7 @@ mod chunk;
 mod document;
 mod event_source;
 mod finder;
+mod helper;
 mod log_timestamp;
 mod manager;
 mod prompt;

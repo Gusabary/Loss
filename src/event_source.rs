@@ -57,6 +57,7 @@ pub enum Event {
     RedoWindowVerticalMove,
     FinderOperation(FinderAction),
     Follow,
+    ToggleHelperMenu,
 }
 
 #[derive(Debug, Default)]
@@ -67,6 +68,7 @@ pub struct EventSource {
     new_bookmark_prompt: Prompt,
     bookmark_menu: BookMarkMenu,
     finder_event_parser: FinderEventParser,
+    helper_menu_active: bool,
 }
 
 impl EventSource {
@@ -105,6 +107,15 @@ impl EventSource {
     }
 
     fn handle_key_press(&mut self, key: &KeyEvent) -> Option<Event> {
+        if self.helper_menu_active {
+            if key.modifiers == KeyModifiers::NONE
+                && (key.code == KeyCode::Char('h') || key.code == KeyCode::Esc)
+            {
+                self.helper_menu_active = false;
+                return Some(Event::ToggleHelperMenu);
+            }
+            return None;
+        }
         if self.search_prompt.is_active() {
             return self.search_prompt.handle_raw_event(key).map(Event::Search);
         }
@@ -183,6 +194,10 @@ impl EventSource {
                 KeyCode::Char(',') => Some(Event::UndoWindowVerticalMove),
                 KeyCode::Char('.') => Some(Event::RedoWindowVerticalMove),
                 KeyCode::Char('F') => Some(Event::Follow),
+                KeyCode::Char('h') => {
+                    self.helper_menu_active = true;
+                    Some(Event::ToggleHelperMenu)
+                }
                 _ => None,
             }
         } else if key.modifiers == KeyModifiers::CONTROL {
