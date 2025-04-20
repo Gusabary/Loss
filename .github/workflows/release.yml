@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]  # Trigger on tags like v1.0.0
+    tags: ["v*"]
 
 permissions:
   contents: write
@@ -86,7 +86,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.ref_name }}
-          name: "Release ${{ github.ref_name }}"
+          name: "${{ github.ref_name }}"
           files: |
             release_binaries/loss-linux
             release_binaries/loss-macos
