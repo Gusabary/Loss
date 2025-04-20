@@ -29,15 +29,15 @@ jobs:
           - platform: linux
             target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            binary_name: loss
+            binary_name: loss-linux
           - platform: macos
             target: x86_64-apple-darwin
             os: macos-latest
-            binary_name: loss
+            binary_name: loss-macos
           - platform: windows
             target: x86_64-pc-windows-gnu
             os: windows-latest
-            binary_name: loss.exe
+            binary_name: loss-windows.exe
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -50,17 +50,17 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Run cargo build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Rename binary
+        run: mv target/${{ matrix.target }}/release/${{ matrix.binary_name }} ${{ matrix.binary_name }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ${{ matrix.platform }}
-          path: target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+          name: ${{ matrix.platform }}-binary
+          path: ${{ matrix.binary_name }}
 
   create-release:
     name: Create Release
@@ -71,6 +71,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           path: release_binaries
+          pattern: '*-binary'
+          merge-multiple: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -78,7 +80,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "Release ${{ github.ref_name }}"
           files: |
-            release_binaries/linux/loss
-            release_binaries/macos/loss
-            release_binaries/windows/loss.exe
+            release_binaries/loss-linux
+            release_binaries/loss-macos
+            release_binaries/loss-windows.exe
           generate_release_notes: true
