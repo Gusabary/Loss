@@ -22,7 +22,7 @@ Several alternatives:
 cargo install loss-viewer
 ```
 
-### Download from github release
+### Download from github release test
 Download binary from [Release](https://github.com/Gusabary/Loss/releases) page and put it into $PATH
 
 ### Build from source
