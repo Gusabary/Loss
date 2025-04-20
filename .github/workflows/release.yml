@@ -4,6 +4,9 @@ on:
   push:
     tags: ["v*"]  # Trigger on tags like v1.0.0
 
+permissions:
+  contents: write
+
 jobs:
   version-check:
     name: Verify version consistency
@@ -22,7 +25,7 @@ jobs:
 
   build:
     name: Build (${{ matrix.platform }})
-    needs: version-check  # Wait for version validation
+    needs: version-check
     strategy:
       matrix:
         include:
