@@ -23,6 +23,17 @@ jobs:
             exit 1
           fi
 
+  publish-crates:
+    name: Publish crates
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo publish --verbose
+
   build:
     name: Build (${{ matrix.platform }})
     needs: version-check
