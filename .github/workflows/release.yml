@@ -1,64 +1,84 @@
 name: Release
 
 on:
-  release:
-    types: [ edited ]
+  push:
+    tags: ["v*"]  # Trigger on tags like v1.0.0
 
-permissions:
-  contents: read
-  
 jobs:
-  release:
-    name: Release
-    runs-on: ${{ matrix.os }}
+  version-check:
+    name: Verify version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify crate version matches release tag
+        run: |
+          CRATE_VERSION=$(grep -m1 '^version' Cargo.toml | cut -d '"' -f 2)
+          if [[ "v$CRATE_VERSION" != "${{ github.ref_name }}" ]]; then
+            echo "Error: Cargo.toml version ($CRATE_VERSION) doesn't match release tag (${{ github.ref_name }})"
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.platform }})
+    needs: version-check  # Wait for version validation
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - platform: linux
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            binary_name: loss
+          - platform: macos
+            target: x86_64-apple-darwin
+            os: macos-latest
+            binary_name: loss
+          - platform: windows
+            target: x86_64-pc-windows-gnu
+            os: windows-latest
+            binary_name: loss.exe
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Install stable toolchain
+      - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
+          target: ${{ matrix.target }}
           profile: minimal
-          toolchain: stable
           override: true
 
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-      
       - name: Run cargo build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
-      
-      - name: Create package
-        working-directory: ${{ runner.workspace }}/Loss/
-        id: package
-        shell: bash
-        run: |
-          echo "--------------------------------"
-          echo ${{ github.event.release.prerelease }}
-          echo ${{ github.event.changes.pre_release.from }}
-          echo "--------------------------------"
-          mkdir release
-          cp target/release/loss release/
-          cp README.md release/
-          cp LICENSE release/
-          PACKAGE_NAME=loss-${{ github.ref_name }}-${{ matrix.os }}.tar.gz
-          tar -czvf $PACKAGE_NAME -C release .
-          echo "name=${PACKAGE_NAME}" >> $GITHUB_OUTPUT
-      
-      - name: Upload asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ${{ steps.package.outputs.name }}
-          asset_name: ${{ steps.package.outputs.name }}
-          asset_content_type: application/gzip
+          name: ${{ matrix.platform }}
+          path: target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+
+  create-release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all binaries
+        uses: actions/download-artifact@v3
+        with:
+          path: release_binaries
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          files: |
+            release_binaries/linux/loss
+            release_binaries/macos/loss
+            release_binaries/windows/loss.exe
+          generate_release_notes: true
