@@ -15,8 +15,17 @@ Loss is a modern terminal pager and log viewer designed for efficient log file v
 
 ## Installation
 
-### Building from Source
+Several alternatives:
 
+### Install from crates.io
+```bash
+cargo install loss-viewer
+```
+
+### Download from github release
+Download binary from [Release](https://github.com/Gusabary/Loss/releases) page and put it into $PATH
+
+### Build from source
 ```bash
 # clone the repository
 git clone https://github.com/yourusername/loss.git
