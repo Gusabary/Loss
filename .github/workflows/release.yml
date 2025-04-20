@@ -3,7 +3,6 @@ name: Release
 on:
   push:
     tags: ["v*"]  # Trigger on tags like v1.0.0
-    branches: ["master"]
 
 jobs:
   version-check:
@@ -49,6 +48,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
           profile: minimal
+          toolchain: stable
           override: true
 
       - name: Build
