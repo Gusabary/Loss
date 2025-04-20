@@ -55,6 +55,7 @@ jobs:
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename binary
+        working-directory: ${{ runner.workspace }}/Loss/
         run: mv target/${{ matrix.target }}/release/${{ matrix.binary_name }} ${{ matrix.binary_name }}
 
       - name: Upload artifact
