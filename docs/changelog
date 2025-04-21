@@ -1,3 +1,6 @@
+## 0.3.0
+- fix empty prompt issue
+
 ## 0.2.0
 - fix binary name from `loss-viewer` to `loss`
 
