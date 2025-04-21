@@ -60,10 +60,15 @@ jobs:
             target: x86_64-pc-windows-gnu
             binary_name: loss.exe
     runs-on: ${{ matrix.os }}
-    container: ${{ matrix.name == 'almalinux8' && 'almalinux/8-toolbox:latest' || null }}
+    container: ${{ matrix.name == 'almalinux8' && 'almalinux:8' || null }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+      
+      - name: Install build tools
+        if: matrix.name == 'almalinux8'
+        run: |
+          dnf install -y gcc
 
       - name: Install Rust
         uses: actions-rs/toolchain@v1
