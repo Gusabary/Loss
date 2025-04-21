@@ -46,18 +46,19 @@ jobs:
           - platform: linux
             target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            raw_binary_name: loss
-            binary_name: loss-linux
+            binary_name: loss
+          - platform: linux
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu-18.04
+            binary_name: loss
           - platform: macos
             target: x86_64-apple-darwin
             os: macos-latest
-            raw_binary_name: loss
-            binary_name: loss-macos
+            binary_name: loss
           - platform: windows
             target: x86_64-pc-windows-gnu
             os: windows-latest
-            raw_binary_name: loss.exe
-            binary_name: loss-windows.exe
+            binary_name: loss.exe
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -76,13 +77,21 @@ jobs:
 
       - name: Rename binary
         working-directory: ${{ runner.workspace }}/Loss/
-        run: mv target/${{ matrix.target }}/release/${{ matrix.raw_binary_name }} ${{ matrix.binary_name }}
+        env:
+          label: ${{ matrix.os }}-${{ matrix.target }}
+        run: |
+          mkdir loss-${{ env.label }}
+          mv target/${{ matrix.target }}/release/${{ matrix.binary_name }} loss-${{ env.label }}/
+          mv README.md loss-${{ env.label }}/
+          mv LICENSE loss-${{ env.label }}/
+          mv docs/changelog loss-${{ env.label }}/
+          tar -czvf loss-${{ env.label }}.tar.gz loss-${{ env.label }}/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-binary
-          path: ${{ matrix.binary_name }}
+          name: loss-${{ env.label }}.tar.gz
+          path: loss-${{ env.label }}.tar.gz
 
   create-release:
     name: Create Release
@@ -93,7 +102,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: release_binaries
-          pattern: '*-binary'
+          pattern: 'loss-*.tar.gz'
           merge-multiple: true
 
       - name: Create GitHub Release
@@ -102,7 +111,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "${{ github.ref_name }}"
           files: |
-            release_binaries/loss-linux
-            release_binaries/loss-macos
-            release_binaries/loss-windows.exe
+            release_binaries/loss-ubuntu-latest-x86_64-unknown-linux-gnu.tar.gz
+            release_binaries/loss-ubuntu-18.04-x86_64-unknown-linux-gnu.tar.gz
+            release_binaries/loss-macos-latest-x86_64-apple-darwin.tar.gz
+            release_binaries/loss-windows-latest-x86_64-pc-windows-gnu.tar.gz
           generate_release_notes: true
