@@ -38,26 +38,22 @@ jobs:
           cargo publish --verbose
 
   build:
-    name: Build (${{ matrix.platform }})
+    name: Build (${{ matrix.os }})
     needs: version-check
     strategy:
       matrix:
         include:
-          - platform: linux
+          - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
             binary_name: loss
-          - platform: linux
+          - os: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
-            os: ubuntu-18.04
             binary_name: loss
-          - platform: macos
+          - os: macos-latest
             target: x86_64-apple-darwin
-            os: macos-latest
             binary_name: loss
-          - platform: windows
+          - os: windows-latest
             target: x86_64-pc-windows-gnu
-            os: windows-latest
             binary_name: loss.exe
     runs-on: ${{ matrix.os }}
     steps:
@@ -85,7 +81,7 @@ jobs:
           mv README.md loss-${{ env.label }}/
           mv LICENSE loss-${{ env.label }}/
           mv docs/changelog loss-${{ env.label }}/
-          tar -czvf loss-${{ env.label }}.tar.gz loss-${{ env.label }}/
+          tar -czvf loss-${{ env.label }}.tar.gz -C loss-${{ env.label }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
