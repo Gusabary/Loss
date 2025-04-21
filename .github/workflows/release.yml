@@ -38,24 +38,29 @@ jobs:
           cargo publish --verbose
 
   build:
-    name: Build (${{ matrix.os }})
+    name: Build (${{ matrix.name }})
     needs: version-check
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
+            name: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             binary_name: loss
-          - os: ubuntu-18.04
+          - os: ubuntu-latest
+            name: ubuntu-18.04
             target: x86_64-unknown-linux-gnu
             binary_name: loss
           - os: macos-latest
+            name: macos-latest
             target: x86_64-apple-darwin
             binary_name: loss
           - os: windows-latest
+            name: windows-latest
             target: x86_64-pc-windows-gnu
             binary_name: loss.exe
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.name == 'ubuntu-18.04' && 'ubuntu:18.04' || null }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,21 +78,19 @@ jobs:
 
       - name: Rename binary
         working-directory: ${{ runner.workspace }}/Loss/
-        env:
-          label: ${{ matrix.os }}-${{ matrix.target }}
         run: |
-          mkdir loss-${{ env.label }}
-          mv target/${{ matrix.target }}/release/${{ matrix.binary_name }} loss-${{ env.label }}/
-          mv README.md loss-${{ env.label }}/
-          mv LICENSE loss-${{ env.label }}/
-          mv docs/changelog loss-${{ env.label }}/
-          tar -czvf loss-${{ env.label }}.tar.gz -C loss-${{ env.label }} .
+          mkdir loss-${{ matrix.name }}
+          mv target/${{ matrix.target }}/release/${{ matrix.binary_name }} loss-${{ matrix.name }}/
+          mv README.md loss-${{ matrix.name }}/
+          mv LICENSE loss-${{ matrix.name }}/
+          mv docs/changelog loss-${{ matrix.name }}/
+          tar -czvf loss-${{ matrix.name }}.tar.gz -C loss-${{ matrix.name }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: loss-${{ env.label }}.tar.gz
-          path: loss-${{ env.label }}.tar.gz
+          name: loss-${{ matrix.name }}.tar.gz
+          path: loss-${{ matrix.name }}.tar.gz
 
   create-release:
     name: Create Release
@@ -107,8 +110,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: "${{ github.ref_name }}"
           files: |
-            release_binaries/loss-ubuntu-latest-x86_64-unknown-linux-gnu.tar.gz
-            release_binaries/loss-ubuntu-18.04-x86_64-unknown-linux-gnu.tar.gz
-            release_binaries/loss-macos-latest-x86_64-apple-darwin.tar.gz
-            release_binaries/loss-windows-latest-x86_64-pc-windows-gnu.tar.gz
+            release_binaries/loss-ubuntu-latest.tar.gz
+            release_binaries/loss-ubuntu-18.04.tar.gz
+            release_binaries/loss-macos-latest.tar.gz
+            release_binaries/loss-windows-latest.tar.gz
           generate_release_notes: true
