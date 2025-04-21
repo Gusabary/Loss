@@ -373,7 +373,8 @@ impl Manager {
             PromptAction::Enter(content) => {
                 self.status_bar.clear_text();
                 if content.is_empty() {
-                    self.status_bar.set_oneoff_error_text("Bookmark name shouldn't be empty");
+                    self.status_bar
+                        .set_oneoff_error_text("Bookmark name shouldn't be empty");
                 } else if content.len() > BOOKMARK_NAME_MAX_LEN {
                     self.status_bar.set_oneoff_error_text(&format!(
                         "Bookmark name should have no more than {BOOKMARK_NAME_MAX_LEN} chars"
