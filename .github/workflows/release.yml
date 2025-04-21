@@ -48,7 +48,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             binary_name: loss
           - os: ubuntu-latest
-            name: ubuntu-18.04
+            name: almalinux8
             target: x86_64-unknown-linux-gnu
             binary_name: loss
           - os: macos-latest
@@ -60,7 +60,7 @@ jobs:
             target: x86_64-pc-windows-gnu
             binary_name: loss.exe
     runs-on: ${{ matrix.os }}
-    container: ${{ matrix.name == 'ubuntu-18.04' && 'ubuntu:18.04' || null }}
+    container: ${{ matrix.name == 'almalinux8' && 'almalinux:8' || null }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -111,7 +111,7 @@ jobs:
           name: "${{ github.ref_name }}"
           files: |
             release_binaries/loss-ubuntu-latest.tar.gz
-            release_binaries/loss-ubuntu-18.04.tar.gz
+            release_binaries/loss-almalinux8.tar.gz
             release_binaries/loss-macos-latest.tar.gz
             release_binaries/loss-windows-latest.tar.gz
           generate_release_notes: true
