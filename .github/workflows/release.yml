@@ -60,7 +60,7 @@ jobs:
             target: x86_64-pc-windows-gnu
             binary_name: loss.exe
     runs-on: ${{ matrix.os }}
-    container: ${{ matrix.name == 'almalinux8' && 'almalinux:8' || null }}
+    container: ${{ matrix.name == 'almalinux8' && 'almalinux/8-toolbox:latest' || null }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
