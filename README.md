@@ -77,4 +77,4 @@ loss <filename>
 
 ## License
 
-[MIT](https://github.com/Gusabary/Loss/blob/master/LICENSE)
+[MIT](https://github.com/Gusabary/Loss/blob/main/LICENSE)

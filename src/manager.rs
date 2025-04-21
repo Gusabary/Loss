@@ -239,9 +239,13 @@ impl Manager {
             PromptAction::Enter(content) => {
                 assert_eq!(self.finder.active_slots().len(), 1);
                 self.status_bar.clear_text();
-                self.finder.update_search_pattern(&content);
-                self.search_next(self.context.searching_direction.unwrap(), false)?;
-                self.context.searching_direction = None;
+                if content.is_empty() {
+                    self.status_bar.set_oneoff_error_text("Nothing to search");
+                } else {
+                    self.finder.update_search_pattern(&content);
+                    self.search_next(self.context.searching_direction.unwrap(), false)?;
+                    self.context.searching_direction = None;
+                }
             }
         }
         Ok(())
@@ -368,7 +372,10 @@ impl Manager {
             }
             PromptAction::Enter(content) => {
                 self.status_bar.clear_text();
-                if content.len() > BOOKMARK_NAME_MAX_LEN {
+                if content.is_empty() {
+                    self.status_bar
+                        .set_oneoff_error_text("Bookmark name shouldn't be empty");
+                } else if content.len() > BOOKMARK_NAME_MAX_LEN {
                     self.status_bar.set_oneoff_error_text(&format!(
                         "Bookmark name should have no more than {BOOKMARK_NAME_MAX_LEN} chars"
                     ));

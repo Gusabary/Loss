@@ -1,10 +1,10 @@
 [package]
 name = "loss-viewer"  # why crate.io doesn't have package namespace !!
-version = "0.2.3"
+version = "0.3.0"
 description = "A modern terminal pager and log viewer."
 authors = ["Gusabary <Gusabary@126.com>"]
 keywords = ["cli", "terminal-pager", "log-viewer"]
-documentation = "https://github.com/Gusabary/Loss/blob/master/README.md"
+documentation = "https://github.com/Gusabary/Loss/blob/main/README.md"
 homepage = "https://github.com/Gusabary/Loss"
 repository = "https://github.com/Gusabary/Loss"
 readme = "README.md"
